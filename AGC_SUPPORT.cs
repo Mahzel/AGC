@@ -556,7 +556,7 @@ namespace AGC_SUPPORT
         public int get_cycle()
         {
             e_ticks = DateTime.Now.Ticks - i_ticks;
-            cycle = (int)(e_ticks/12000);
+            cycle = (int)(e_ticks/120000);
             //Console.WriteLine("Cycle n° : {0} / Ticks : {1}", cycle, e_ticks);
             if(cycle >=1)
             {i_ticks = DateTime.Now.Ticks;
