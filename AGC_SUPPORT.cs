@@ -351,10 +351,19 @@ namespace AGC_SUPPORT
             { retval += (ushort)(word[i] * Math.Pow(2, i)); }
                 return retval;
         }
-/// <summary>
-/// get the Hex String
-/// </summary>
-/// <returns>Hex String "0x{value}"</returns>
+        public ushort getVal(int start, int end)
+        {
+            ushort ret = 0;
+            for (int i = start; i <= end; i++)
+            {
+                ret += (ushort)(word[i] * Math.Pow(2, i-start));
+            }
+            return ret;
+        }
+        /// <summary>
+        /// get the Hex String
+        /// </summary>
+        /// <returns>Hex String "0x{value}"</returns>
         public String getHexS()
         { return hexS; }
 /// <summary>
@@ -523,6 +532,15 @@ namespace AGC_SUPPORT
         {
             return b_adress;
         }
+
+        public bool isErasable()
+        { return is_ErType; }
+
+        public int getId()
+        { return bank_id; }
+
+        public int getFEB()
+        { return FEB; }
     }
     /// <summary>
     /// <para>placeholder for a clock</para>    
@@ -771,8 +789,7 @@ namespace AGC_SUPPORT
         {
             SQ = B.getOpCode();
             S = B.getOperand();
-            QC =(ushort)( B.getWord()[11]*2+B.getWord()[10]);
-            S = (ushort)(S - QC*0x400);
+            QC =(ushort)( B.getVal(10,11));
             if (!extra)
             {
                 switch (SQ)
@@ -823,22 +840,33 @@ namespace AGC_SUPPORT
         BANK B;
         int max_pass = 5;
         int bank_index = 0;
+        int[] bank_count;
         Dictionary<String, int> labels = new Dictionary<String, int>();
+        bool bank_changed;
 
         public AGC_Compiler(String FInput, String FOutput)
         {
             AGC_Code_File = FInput;
             AGC_Bit_File = FOutput;
-            Cp_File = File.ReadAllLines(AGC_Code_File);
+            bank_count = new int[43];
+            for (int i = 0; i < 43; i++ )
+            { bank_count[i] = 0; }
+                Cp_File = File.ReadAllLines(AGC_Code_File);
             FB = 0; EB = 0;
             FEB = 0;
             B = new BANK(false, FB, FEB, AGC_Bit_File);
             B.compiling = true;
+            bank_changed = false;
             process_line(0);
             foreach (KeyValuePair<string, int> kvp in labels)
             {
                 Console.WriteLine("Label : {0} - Value : {1}", kvp.Key, kvp.Value);
             }
+            FB = 0; EB = 0; FEB = 0;
+            bank_changed = true;
+            for (int i = 0; i < 43; i++)
+            { bank_count[i] = 0; }
+            bank_index = 0;
             process_line(1);
         }
 
@@ -850,6 +878,10 @@ namespace AGC_SUPPORT
             {
                 if ((current = Cp_File[i]) != null)
                 {
+                    if (bank_changed)
+                    { B = new BANK(false, FB, FEB, AGC_Bit_File);
+                    B.compiling = true;
+                    bank_changed = false;}
                     String[] items = current.Split(sep, StringSplitOptions.None);
                     switch (mode)
                     {
@@ -857,33 +889,24 @@ namespace AGC_SUPPORT
                             else{
                                 try
                                 {
-                                    if (items[1] == "" | items[1] == "BANK"| items[1] == "EBANK")
+                                    if (items[1] == "BANK" | items[1] == "EBANK")
                                     {
-                                        if(items[1] == "BANK" | items[1] == "EBANK")
-                                        {switch(items[1])
-                                        { case "BANK":FB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
-                                                     if(FB>32)
-                                                    { FEB = 1; }
-                                                     else { FEB = 0; }break;
-                                        case "EBANK": EB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer); break;
-                                        }
-                                        }
-                                        bank_index -= 1;
+                                        switch_bank(items);
                                     }
+                                    else { bank_index += 1; }
                                 }
-                                catch { bank_index -= 1; }
+                                catch {}
                         } break;
                         case 1: try
                             {
                                 if (items[1] != "")
                                 {
-                                    resolve_opcode(items);
+                                        resolve_opcode(items);                      
                                 }
                             }
                             catch { }
                             break;
                     }
-                    bank_index += 1;
                     // else{return -1;}
                 }
                 
@@ -894,34 +917,87 @@ namespace AGC_SUPPORT
 
         public int resolve_labels(String[] items)
         {
-            if(items[1].Equals("="))
-            { labels.Add(items[0], int.Parse(items[2], System.Globalization.NumberStyles.HexNumber));
-            bank_index -= 1;
-            }
-            else
-            {
                 int adress = B.get_ba()/16 + bank_index;
                 labels.Add(items[0], adress);
-            }
+                if (items[1] == "=")
+                { B.set_sword((ushort)bank_index, new sWord((ushort)int.Parse(items[2], System.Globalization.NumberStyles.HexNumber)));
+                B.write_bank();
+                }
+                bank_index += 1;
             return 0;
         }
 
         public int resolve_opcode(String[] items)
         { ushort opcode = 0;
           ushort adress = 0;
-          ushort QC = 0;
           switch(items[1])
           {
             case "TC": opcode = 0x0 * 4096;break;
             case "AD": opcode = 0x6  * 4096;break;
             case "MASK": opcode = 0x7 * 4096; break;
-            default: return 0;
+            case "BANK": switch_bank(items); return 0; break;
+            case "EBANK": switch_bank(items); return 0; break;
+            default: bank_index++;  return 0;
           }
-          adress = (ushort)Int16.Parse(items[2], System.Globalization.NumberStyles.HexNumber);
+          try { adress = (ushort)Int16.Parse(items[2], System.Globalization.NumberStyles.HexNumber); }
+            catch{
+                int val = 0;
+            if(labels.TryGetValue(items[2], out val))
+            {
+                sWord adr = new sWord();
+                if (val >= 0x1000)
+                {
+                    adress = (ushort)(val - 0x1000 + 0x400);
+                }
+                else
+                {
+                    if (val >= 0x400 && val <= 0x7FF)
+                    {
+                        adr = new sWord((ushort)val);
+                        adress = (ushort)(adr.getVal(0, 7) + 0x300);
+                    }
+                    else { adress = (ushort)val; }
+                }      
+            }
+            }
           sWord ad = new sWord((ushort)(opcode + adress), true);
           B.set_sword((ushort)bank_index, ad);
           B.write_bank();
           bank_index += 1;
         return 0;}
+
+        public void switch_bank(string[] items)
+        {
+            save_index();
+            B.write_bank();
+            switch (items[1])
+            {
+                case "BANK": FB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
+                    if (FB > 32)
+                    { FEB = 1;}
+                    else { FEB = 0; }
+                    bank_index = bank_count[FB];
+                    break;
+                case "EBANK": EB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
+                    bank_index = bank_count[EB];
+                    break;
+            }
+            bank_changed = true;
+
+        }
+
+        public void save_index()
+        {
+           if(B.isErasable())
+           {
+               bank_count[B.getId()] = bank_index;
+           }
+           else
+           {
+               if(B.getFEB() != 1)
+               { bank_count[B.getId() + 8] = bank_index; }
+               else { bank_count[B.getId() + 16] = bank_index; }
+           }
+        }
     }
 }
