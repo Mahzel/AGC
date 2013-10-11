@@ -843,6 +843,11 @@ namespace AGC_SUPPORT
         int[] bank_count;
         Dictionary<String, int> labels = new Dictionary<String, int>();
         bool bank_changed;
+        int error = 0;
+        int pass_count = 0;
+        int lerror = -6;
+        int FC_count = 0;
+        string bank_type = "FB";
 
         public AGC_Compiler(String FInput, String FOutput)
         {
@@ -853,21 +858,52 @@ namespace AGC_SUPPORT
             { bank_count[i] = 0; }
                 Cp_File = File.ReadAllLines(AGC_Code_File);
             FB = 0; EB = 0;
-            FEB = 0;
+            FEB = 0; lerror = -6;
             B = new BANK(false, FB, FEB, AGC_Bit_File);
             B.compiling = true;
             bank_changed = false;
-            process_line(0);
-            foreach (KeyValuePair<string, int> kvp in labels)
-            {
-                Console.WriteLine("Label : {0} - Value : {1}", kvp.Key, kvp.Value);
             }
+
+        public int compile()
+        {
+            while (lerror == -6 && pass_count < max_pass) //until all labels are resolved
+            {
+                FC_count = 0;
+                FB = 0; EB = 0; FEB = 0;
+                bank_changed = true;
+                for (int i = 0; i < 43; i++)
+                { bank_count[i] = 0; }
+                bank_index = 0;
+                process_line(0);
+                pass_count++;
+                Console.WriteLine("Compile pass : {0}", pass_count);
+            }
+            if(pass_count == max_pass)
+            { return -6; }
+            output_labels();
             FB = 0; EB = 0; FEB = 0;
             bank_changed = true;
             for (int i = 0; i < 43; i++)
             { bank_count[i] = 0; }
             bank_index = 0;
             process_line(1);
+            return error;
+        }
+
+        private void output_labels()
+        {if(File.Exists("Labels_"+AGC_Code_File))
+        { File.Delete("Labels_" + AGC_Code_File); }
+        FileStream fs = File.Create("Labels_" + AGC_Code_File);
+          fs.Close();
+          fs.Dispose();
+          StreamWriter sw = new StreamWriter("Labels_" + AGC_Code_File, true);
+        string output;
+        foreach (KeyValuePair<string, int> kvp in labels)
+        {
+            output = String.Format("Label : {0} - Adress : 0x{1:X} \n", kvp.Key, kvp.Value);
+            sw.Write(output);
+        }
+        sw.Close();
         }
 
         public int process_line(int mode)
@@ -879,49 +915,73 @@ namespace AGC_SUPPORT
                 if ((current = Cp_File[i]) != null)
                 {
                     if (bank_changed)
-                    { B = new BANK(false, FB, FEB, AGC_Bit_File);
-                    B.compiling = true;
-                    bank_changed = false;}
+                    {
+                        switch(bank_type)
+                        {
+                            case "FB": B = new BANK(false, FB, FEB, AGC_Bit_File); break;
+                            case "EB": B = new BANK(true, EB, 0, AGC_Bit_File); break;
+                        }
+                        B.compiling = true;
+                        bank_changed = false;
+                    }
                     String[] items = current.Split(sep, StringSplitOptions.None);
                     switch (mode)
                     {
-                        case 0: if (items[0] != "") { resolve_labels(items); }
-                            else{
+                        case 0: if (items[0] != "") { error = resolve_labels(items);}
+                            else
+                            {
                                 try
                                 {
-                                    if (items[1] == "BANK" | items[1] == "EBANK")
+                                    switch (items[1])
                                     {
-                                        switch_bank(items);
+                                        case "BANK": switch_bank(items); break;
+                                        case "EBANK": switch_bank(items); break;
+                                        case "SETLOC": bank_index = (ushort)Int16.Parse(items[2], System.Globalization.NumberStyles.HexNumber); break;
+                                        case "2FCADR": lerror = toFCADR(items); break;
+                                        case "ERASE": bank_index++; break;
+                                        default: bank_index++; break;
                                     }
-                                    else { bank_index += 1; }
                                 }
-                                catch {}
-                        } break;
+                                catch { }
+                            } break;
                         case 1: try
                             {
                                 if (items[1] != "")
                                 {
-                                        resolve_opcode(items);                      
+                                    error = resolve_opcode(items);
                                 }
                             }
                             catch { }
                             break;
                     }
-                    // else{return -1;}
                 }
-                
-
+                else { error = -4; } //EOF
+                if(error != 0 && lerror != -6)
+                { return error; }
             }
-            return 0;
+            return error;
         }
 
         public int resolve_labels(String[] items)
         {
                 int adress = B.get_ba()/16 + bank_index;
+                int val = 0;
+            if(labels.TryGetValue(items[0], out val))
+            {
+                error = -5; //labels already exist
+            }
+            if (error != -5)
+            {
                 labels.Add(items[0], adress);
-                if (items[1] == "=")
-                { B.set_sword((ushort)bank_index, new sWord((ushort)int.Parse(items[2], System.Globalization.NumberStyles.HexNumber)));
-                B.write_bank();
+            }
+                switch (items[1])
+                {
+                    case "=": 
+                        if(error!=-5)
+                        { B.set_sword((ushort)bank_index, new sWord(ResolveOperand(items[2])));
+                        B.write_bank();} break;
+                    case "2FCADR": lerror = toFCADR(items);
+                        return lerror;
                 }
                 bank_index += 1;
             return 0;
@@ -935,36 +995,113 @@ namespace AGC_SUPPORT
             case "TC": opcode = 0x0 * 4096;break;
             case "AD": opcode = 0x6  * 4096;break;
             case "MASK": opcode = 0x7 * 4096; break;
-            case "BANK": switch_bank(items); return 0; break;
-            case "EBANK": switch_bank(items); return 0; break;
-            default: bank_index++;  return 0;
+            case "SETLOC": error = SETLOC(items); return 0;
+            case "ERASE": bank_index++; break;
+            case "BANK": switch_bank(items); return 0;
+            case "EBANK": switch_bank(items); return 0;
+            case "=": bank_index++; return 0;
+            case "2FCADR": bank_index += 2; return 0;
+            default: bank_index++;  return -1;
           }
-          try { adress = (ushort)Int16.Parse(items[2], System.Globalization.NumberStyles.HexNumber); }
-            catch{
-                int val = 0;
-            if(labels.TryGetValue(items[2], out val))
-            {
-                sWord adr = new sWord();
-                if (val >= 0x1000)
-                {
-                    adress = (ushort)(val - 0x1000 + 0x400);
-                }
-                else
-                {
-                    if (val >= 0x400 && val <= 0x7FF)
-                    {
-                        adr = new sWord((ushort)val);
-                        adress = (ushort)(adr.getVal(0, 7) + 0x300);
-                    }
-                    else { adress = (ushort)val; }
-                }      
-            }
-            }
+          adress = ResolveOperand(items[2]);
           sWord ad = new sWord((ushort)(opcode + adress), true);
           B.set_sword((ushort)bank_index, ad);
           B.write_bank();
           bank_index += 1;
         return 0;}
+
+        public int SETLOC(string[] item)
+        {
+            int val = 0;
+            int keyval;
+            try
+            {
+                val = Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber);
+            }
+            catch
+            {
+                if (labels.TryGetValue(item[2], out keyval))
+                {val = keyval;                }
+                else { return -6; //unknown label
+                }
+            }
+            if(B.isErasable())
+            {   if(val <= 0xFF)
+                {bank_index = val;}
+                else{return -7;} //index out of range
+            }
+            else{
+                if(val <= 0x3FF)
+                {bank_index = val;}
+                else{return -7;} //index out of range
+                }
+            return 0;
+        }
+
+        public int toFCADR(string[] item)
+        {
+            sWord adr = null;
+            try { adr = new sWord((ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber), true);}
+            catch
+            {
+                int val = 0;
+                if (labels.TryGetValue(item[2], out val))
+                {
+                    adr = new sWord((ushort)val, true);                  
+                }
+                else
+                {
+                    bank_index += 2;
+                    FC_count += 1;
+                    return -6;}
+            }
+            int tad = adr.getVal(10, 14);
+            if (tad < 4)
+            {
+                B.set_sword((ushort)bank_index, new sWord((ushort)(adr.getVal(10, 14)), true));
+            }
+            else
+            {
+                B.set_sword((ushort)bank_index, new sWord((ushort)(adr.getVal(10, 14) - 4), true));
+            }            
+                bank_index++;
+                B.set_sword((ushort)bank_index, new sWord(adr.getVal(0, 9), true));
+                bank_index++;
+                B.write_bank();
+                if(FC_count > 0)
+                { return -6; }
+                return 0;            
+        }
+
+        public ushort ResolveOperand(string item)
+        {
+            ushort adress = 0;
+            try { adress = (ushort)Int16.Parse(item, System.Globalization.NumberStyles.HexNumber); }
+            catch
+            {
+                int val = 0;
+                if (labels.TryGetValue(item, out val))
+                {
+                    sWord adr = new sWord();
+                    if (val >= 0x1000)
+                    {
+                        adress = (ushort)(val - 0x1000 + 0x400);
+                    }
+                    else
+                    {
+                        if (val >= 0x400 && val <= 0x7FF)
+                        {
+                            adr = new sWord((ushort)val);
+                            adress = (ushort)(adr.getVal(0, 7) + 0x300);
+                        }
+                        else { adress = (ushort)val; }
+                    }
+                }
+
+                return 1;
+            }
+            return adress;
+        }
 
         public void switch_bank(string[] items)
         {
@@ -977,9 +1114,11 @@ namespace AGC_SUPPORT
                     { FEB = 1;}
                     else { FEB = 0; }
                     bank_index = bank_count[FB];
+                    bank_type = "FB";
                     break;
                 case "EBANK": EB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
                     bank_index = bank_count[EB];
+                    bank_type = "EB";
                     break;
             }
             bank_changed = true;
