@@ -731,18 +731,18 @@ namespace AGC_SUPPORT
             {
                 clock.c_start();
                 cycle_count = 0;
-                int prev_cycle = 0;
+                //int prev_cycle = 0;
                 exec_opc(false);
                 B = b.get_word(Z.getHex());
                 B.setWord(B.hexToByte());
                 Z.setHex((ushort)(Z.getHex() + 1));
-                while (cycle_count < 13)
+               /* while (cycle_count < 13)
                 {
                     cycle_count += clock.get_cycle();
                     if (cycle_count != prev_cycle)
                     { Console.WriteLine("Cycle n° : {0}", cycle_count); }
                     prev_cycle = cycle_count;
-                }
+                }*/
             }
             Console.WriteLine("AGC halted");
         }
@@ -801,28 +801,104 @@ namespace AGC_SUPPORT
                         }
                         else
                         {
-                            Console.WriteLine("TCF {0:X4}", S); break;
+                            S = B.getVal(0, 9); Console.WriteLine("TCF {0:X4}", S); break;
                         }
                     case 2: switch (QC)
                         {
                             case 0: Console.WriteLine("DAS {0:X4}", S); break;
-                            case 1: Console.WriteLine("LXCH {0:X4}", S); break;
-                            case 2: Console.WriteLine("INCR {0:X4}", S); break;
-                            case 3: Console.WriteLine("ADS {0:X4}", S); break;
+                            case 1: S = B.getVal(0, 9); Console.WriteLine("LXCH {0:X4}", S); break;
+                            case 2: S = B.getVal(0, 9); Console.WriteLine("INCR {0:X4}", S); break;
+                            case 3: S = B.getVal(0, 9); Console.WriteLine("ADS {0:X4}", S); break;
                         }break;
                     case 3: Console.WriteLine("CA {0:X4}", S); break;
                     case 4: Console.WriteLine("CS {0:X4}", S); break;
                     case 5: switch (QC)
                         {
                             case 0: Console.WriteLine("INDEX {0:X4}", S); break;
-                            case 1: Console.WriteLine("DXCH {0:X4}", S); break;
-                            case 2: Console.WriteLine("TS {0:X4}", S); break;
-                            case 3: Console.WriteLine("XCH {0:X4}", S); break;
+                            case 1: S = B.getVal(0, 9); Console.WriteLine("DXCH {0:X4}", S); break;
+                            case 2: S = B.getVal(0, 9); Console.WriteLine("TS {0:X4}", S); break;
+                            case 3: S = B.getVal(0, 9); Console.WriteLine("XCH {0:X4}", S); break;
                         } break;
                     case 6: Console.WriteLine("AD {0:X4}", S); break;
                     case 7: Console.WriteLine("MASK {0:X4}", S); running = false; break;
                 }
             }
+        }
+    }
+
+    public class fvDict
+    {
+        public Dictionary<String, int> registers = new Dictionary<String, int>();
+        public Dictionary<String, ushort> opcode = new Dictionary<String, ushort>();
+        public Dictionary<String, ushort> quarter = new Dictionary<String, ushort>();
+        public Dictionary<String, ushort> extrac = new Dictionary<String, ushort>();
+        public Dictionary<String, ushort> extraq = new Dictionary<String, ushort>();
+        public Dictionary<String, ushort> IACode = new Dictionary<String, ushort>();
+        public Dictionary<String, ushort> IOCode = new Dictionary<String, ushort>();
+
+        public fvDict(){
+            registers.Add("rA", 0);
+            registers.Add("rZ", 5);
+            registers.Add("rL", 1);
+            registers.Add("rQ", 2);
+            registers.Add("rBB", 6);
+            registers.Add("rEB", 3);
+            registers.Add("rFB", 4);
+            registers.Add("rZERO", 7);
+            opcode.Add("TC", 0);
+            opcode.Add("CCS", 1);
+            opcode.Add("DAS", 2);
+            opcode.Add("CA", 3);
+            opcode.Add("CS", 4);
+            opcode.Add("INDEX", 5);
+            opcode.Add("AD", 6);
+            opcode.Add("MASK", 7);
+            //quarter.Add("TCF", 5); //TODO : special case TCF jump to 12b adress => QC depend of adress, not fixed
+            quarter.Add("LXCH",9);
+            quarter.Add("INCR", 10);
+            quarter.Add("ADS", 11);
+            quarter.Add("DXCH", 21);
+            quarter.Add("TS", 22);
+            quarter.Add("XCH", 23);
+            extrac.Add("DV", 1);
+            extrac.Add("MSU", 2);
+            extrac.Add("DCA", 3);
+            extrac.Add("DCS", 4);
+            extrac.Add("INDEX", 5);
+            extrac.Add("SU", 6);
+            extrac.Add("MP", 7);
+            //extraq.Add("BZF", 5); //TODO SAME as TCF
+            extraq.Add("QXCH", 9);
+            extraq.Add("AUG", 10);
+            extraq.Add("DIM", 11);
+            //extraq.Add("BZMF", 25); //TODO same as TCF
+            IACode.Add("XXALQ", 0);
+            IACode.Add("XLQ", 1);
+            IACode.Add("RETURN", 2);
+            IACode.Add("RELINT", 3);
+            IACode.Add("INHINT", 4);
+            IACode.Add("EXTEND", 6);
+            IACode.Add("DDOUBL", 8193);
+            IACode.Add("ZL", 9223);
+            IACode.Add("COM", 16384);
+            IACode.Add("DTCF", 21509);
+            IACode.Add("DTCB", 21510);
+            IACode.Add("OVSK", 22528);
+            IACode.Add("TCAA", 22533);
+            IACode.Add("DOUBLE", 24576);
+            IACode.Add("ZQ", 9223);
+            IACode.Add("DCOM", 16385);
+            IACode.Add("SQUARE", 28672);
+            IACode.Add("NOOP", 7);
+            IACode.Add("RESUME", 20495);
+            IOCode.Add("READ", 0);
+            IOCode.Add("WRITE", 0);
+            IOCode.Add("RAND", 0);
+            IOCode.Add("WAND", 0);
+            IOCode.Add("ROR", 0);
+            IOCode.Add("WOR", 0);
+            IOCode.Add("RXOR", 0);
+            IOCode.Add("WXOR", 0);
         }
     }
 
@@ -842,6 +918,7 @@ namespace AGC_SUPPORT
         int bank_index = 0;
         int[] bank_count;
         Dictionary<String, int> labels = new Dictionary<String, int>();
+        fvDict fix = new fvDict();
         bool bank_changed;
         int error = 0;
         int pass_count = 0;
@@ -850,7 +927,7 @@ namespace AGC_SUPPORT
         string bank_type = "FB";
 
         public AGC_Compiler(String FInput, String FOutput)
-        {
+        {        
             AGC_Code_File = FInput;
             AGC_Bit_File = FOutput;
             bank_count = new int[43];
@@ -990,18 +1067,30 @@ namespace AGC_SUPPORT
         public int resolve_opcode(String[] items)
         { ushort opcode = 0;
           ushort adress = 0;
-          switch(items[1])
+          if (fix.opcode.TryGetValue(items[1], out opcode)) { opcode *= 4096; }
+          else if (fix.quarter.TryGetValue(items[1], out opcode)) { opcode *= 1024; }
+          else if (fix.extrac.TryGetValue(items[1], out opcode)) { opcode *= 4096; }
+          else if (fix.extraq.TryGetValue(items[1], out opcode)) { opcode *= 1024; }
+          else if (fix.IACode.TryGetValue(items[1], out opcode))
           {
-            case "TC": opcode = 0x0 * 4096;break;
-            case "AD": opcode = 0x6  * 4096;break;
-            case "MASK": opcode = 0x7 * 4096; break;
-            case "SETLOC": error = SETLOC(items); return 0;
-            case "ERASE": bank_index++; break;
-            case "BANK": switch_bank(items); return 0;
-            case "EBANK": switch_bank(items); return 0;
-            case "=": bank_index++; return 0;
-            case "2FCADR": bank_index += 2; return 0;
-            default: bank_index++;  return -1;
+              if (opcode == 7)
+              {
+                  if (B.isErasable()) { B.set_sword((ushort)bank_index, new sWord(0x3000, true)); }
+                  else { B.set_sword((ushort)bank_index, new sWord((ushort)(0x1001+bank_index), true)); }
+              }
+          }
+          else
+          {
+              switch (items[1])
+              {
+                  case "SETLOC": error = SETLOC(items); return 0;
+                  case "ERASE": bank_index++; break;
+                  case "BANK": switch_bank(items); return 0;
+                  case "EBANK": switch_bank(items); return 0;
+                  case "=": bank_index++; return 0;
+                  case "2FCADR": bank_index += 2; return 0;
+                  default: bank_index++; return -1;
+              }
           }
           adress = ResolveOperand(items[2]);
           sWord ad = new sWord((ushort)(opcode + adress), true);
@@ -1097,8 +1186,14 @@ namespace AGC_SUPPORT
                         else { adress = (ushort)val; }
                     }
                 }
-
-                return 1;
+                else if (fix.registers.TryGetValue(item, out val))
+                {
+                    adress = (ushort)val;
+                }
+                else
+                {
+                    return 1;
+                }
             }
             return adress;
         }
