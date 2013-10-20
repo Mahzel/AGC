@@ -351,6 +351,12 @@ namespace AGC_SUPPORT
             { retval += (ushort)(word[i] * Math.Pow(2, i)); }
                 return retval;
         }
+        /// <summary>
+        /// Get the decimal-equivalent of the specified binary range 0-15
+        /// </summary>
+        /// <param name="start">Lowest bit offset</param>
+        /// <param name="end">Highest bit offset</param>
+        /// <returns>The value of the binary range. Value is not shifted. Mean if you give : 10-15 it'll return as if it was a 0-5 binary word.</returns>
         public ushort getVal(int start, int end)
         {
             ushort ret = 0;
@@ -382,6 +388,9 @@ namespace AGC_SUPPORT
 /// </summary>
     public class BANK
     {
+        /// <summary>
+        /// If this flag is set, then all banks are writable. Use at your own risks.
+        /// </summary>
         public Boolean compiling = false;
         /// <summary>
         /// size of the bank
@@ -420,6 +429,7 @@ namespace AGC_SUPPORT
         /// <param name="type">1-ERASABLE 0-FIXED</param>
         /// <param name="id">Register bank ID</param>
         /// <param name="SB">FEB value if applicable</param>
+        /// <param name="file">The binary file to read/write.</param>
         public BANK(bool type, ushort id, int SB, String file)
         {
             is_ErType = type;
@@ -468,13 +478,13 @@ namespace AGC_SUPPORT
         /// Set the word at the given offset (in MEMORY ARRAY.), inserting the decimal value
         /// </summary>
         /// <param name="offset_index">offset is the memory adress in the bank</param>
-        /// <param name="w">the sWord to write in the bank</param>
+        /// <param name="hex">the word value to write in the bank</param>
         /// <returns>0 : writed / 1 : bank is read only</returns>
-        public int set_sword(ushort offset_index, sWord w)
+        public int set_sword(ushort offset_index, ushort hex)
         {
             if (is_ErType | compiling)
             {
-            MEM_ARRAY[offset_index] = w.getHex();
+            MEM_ARRAY[offset_index] = hex;
             return 0;
             }
             else { return 1; }
@@ -528,17 +538,33 @@ namespace AGC_SUPPORT
             }
         }
 
+        /// <summary>
+        /// return the base adress of the current bank
+        /// </summary>
+        /// <returns>The base adress in the file. To get the AGC adress, divide by 16.</returns>
         public int get_ba()
         {
             return b_adress;
         }
 
+        /// <summary>
+        /// return wether the bank is erasable
+        /// </summary>
+        /// <returns>TRUE : bank is Erasable</returns>
         public bool isErasable()
         { return is_ErType; }
 
+        /// <summary>
+        /// Return the bank id
+        /// </summary>
+        /// <returns>the bank Id</returns>
         public int getId()
         { return bank_id; }
 
+        /// <summary>
+        /// return the Fiexed Extention Bit value
+        /// </summary>
+        /// <returns>The FEB value is 0-1</returns>
         public int getFEB()
         { return FEB; }
     }
@@ -736,13 +762,9 @@ namespace AGC_SUPPORT
                 B = b.get_word(Z.getHex());
                 B.setWord(B.hexToByte());
                 Z.setHex((ushort)(Z.getHex() + 1));
-               /* while (cycle_count < 13)
+                while (cycle_count < 1)
                 {
-                    cycle_count += clock.get_cycle();
-                    if (cycle_count != prev_cycle)
-                    { Console.WriteLine("Cycle n° : {0}", cycle_count); }
-                    prev_cycle = cycle_count;
-                }*/
+                    cycle_count += clock.get_cycle();}
             }
             Console.WriteLine("AGC halted");
         }
@@ -826,16 +848,44 @@ namespace AGC_SUPPORT
         }
     }
 
+    /// <summary>
+    /// Fixed Values Dictionaries for the AGC
+    /// </summary>
     public class fvDict
     {
+        //Functions working with double point to word K instead of K+1 (as normally used in the AGC)
+        /// <summary>
+        /// contain the registers "text" value from an AGC Code
+        /// </summary>
         public Dictionary<String, int> registers = new Dictionary<String, int>();
+        /// <summary>
+        /// contains the standard opcodes and the corresponding decimal value.
+        /// </summary>
         public Dictionary<String, ushort> opcode = new Dictionary<String, ushort>();
+        /// <summary>
+        /// Contain standard quartercodes and the corresponding decimal value
+        /// </summary>
         public Dictionary<String, ushort> quarter = new Dictionary<String, ushort>();
+        /// <summary>
+        /// Contain extended opcodes and the corresponding decimal value
+        /// </summary>
         public Dictionary<String, ushort> extrac = new Dictionary<String, ushort>();
+        /// <summary>
+        /// Contain extended quartercodes and the corresponding decimal value
+        /// </summary>
         public Dictionary<String, ushort> extraq = new Dictionary<String, ushort>();
+        /// <summary>
+        /// Contain extended Implied Adress Codes and the corresponding decimal value
+        /// </summary>
         public Dictionary<String, ushort> IACode = new Dictionary<String, ushort>();
+        /// <summary>
+        /// Contain standard  I/O codes and the corresponding decimal value
+        /// </summary>
         public Dictionary<String, ushort> IOCode = new Dictionary<String, ushort>();
 
+        /// <summary>
+        /// Constructor for the Fixed Values Dictionary
+        /// </summary>
         public fvDict(){
             registers.Add("rA", 0);
             registers.Add("rZ", 5);
@@ -853,7 +903,7 @@ namespace AGC_SUPPORT
             opcode.Add("INDEX", 5);
             opcode.Add("AD", 6);
             opcode.Add("MASK", 7);
-            //quarter.Add("TCF", 5); //TODO : special case TCF jump to 12b adress => QC depend of adress, not fixed
+            quarter.Add("TCF", 4);
             quarter.Add("LXCH",9);
             quarter.Add("INCR", 10);
             quarter.Add("ADS", 11);
@@ -867,22 +917,22 @@ namespace AGC_SUPPORT
             extrac.Add("INDEX", 5);
             extrac.Add("SU", 6);
             extrac.Add("MP", 7);
-            //extraq.Add("BZF", 5); //TODO SAME as TCF
+            extraq.Add("BZF", 4);
             extraq.Add("QXCH", 9);
             extraq.Add("AUG", 10);
             extraq.Add("DIM", 11);
-            //extraq.Add("BZMF", 25); //TODO same as TCF
+            extraq.Add("BZMF", 24);
             IACode.Add("XXALQ", 0);
             IACode.Add("XLQ", 1);
             IACode.Add("RETURN", 2);
             IACode.Add("RELINT", 3);
             IACode.Add("INHINT", 4);
             IACode.Add("EXTEND", 6);
-            IACode.Add("DDOUBL", 8193);
+            IACode.Add("DDOUBL", 8192);
             IACode.Add("ZL", 9223);
             IACode.Add("COM", 16384);
-            IACode.Add("DTCF", 21509);
-            IACode.Add("DTCB", 21510);
+            IACode.Add("DTCF", 21508);
+            IACode.Add("DTCB", 21509);
             IACode.Add("OVSK", 22528);
             IACode.Add("TCAA", 22533);
             IACode.Add("DOUBLE", 24576);
@@ -902,14 +952,16 @@ namespace AGC_SUPPORT
         }
     }
 
+    /// <summary>
+    /// Compiler for the AGC
+    /// TODO : Implement interpreted code
+    /// </summary>
     public class AGC_Compiler
     {
         BANK current_bank;
         ushort FB, EB;
         int FEB;
-        StreamReader AGC_Code;
         String[] Cp_File;
-        FileInfo AGC_C;
         FileStream AGC_Bit;
         String AGC_Code_File;
         String AGC_Bit_File;
@@ -926,14 +978,29 @@ namespace AGC_SUPPORT
         int FC_count = 0;
         string bank_type = "FB";
 
+        /// <summary>
+        /// Constructor for the compiler
+        /// </summary>
+        /// <param name="FInput">The AGC Code file to read from</param>
+        /// <param name="FOutput">The AGC Bin file to write to</param>
         public AGC_Compiler(String FInput, String FOutput)
         {        
             AGC_Code_File = FInput;
             AGC_Bit_File = FOutput;
-            bank_count = new int[43];
-            for (int i = 0; i < 43; i++ )
+            if(File.Exists(AGC_Bit_File))
+            { File.Delete(AGC_Bit_File); }
+            AGC_Bit = File.Create("AGC_Bin.bin");
+            for (int j = 0; j < 655360; j++)
+            {
+                AGC_Bit.Write(new byte[] { 0 }, 0, 1);
+            }
+            AGC_Bit.Close();
+            AGC_Bit.Dispose();
+            Console.WriteLine("Empty bin file created");
+            bank_count = new int[44];
+            for (int i = 0; i < 44; i++ )
             { bank_count[i] = 0; }
-                Cp_File = File.ReadAllLines(AGC_Code_File);
+            Cp_File = File.ReadAllLines(AGC_Code_File);
             FB = 0; EB = 0;
             FEB = 0; lerror = -6;
             B = new BANK(false, FB, FEB, AGC_Bit_File);
@@ -941,6 +1008,11 @@ namespace AGC_SUPPORT
             bank_changed = false;
             }
 
+        /// <summary>
+        /// The compilation routine process lines in mode 0 (resolve labels) then in mode 1 (resolve opcodes) and create the summary output file.
+        /// A maximum of 5 passes is granted to process labels.
+        /// </summary>
+        /// <returns>Error index</returns>
         public int compile()
         {
             while (lerror == -6 && pass_count < max_pass) //until all labels are resolved
@@ -948,7 +1020,7 @@ namespace AGC_SUPPORT
                 FC_count = 0;
                 FB = 0; EB = 0; FEB = 0;
                 bank_changed = true;
-                for (int i = 0; i < 43; i++)
+                for (int i = 0; i < 44; i++)
                 { bank_count[i] = 0; }
                 bank_index = 0;
                 process_line(0);
@@ -957,16 +1029,20 @@ namespace AGC_SUPPORT
             }
             if(pass_count == max_pass)
             { return -6; }
-            output_labels();
             FB = 0; EB = 0; FEB = 0;
             bank_changed = true;
             for (int i = 0; i < 43; i++)
             { bank_count[i] = 0; }
             bank_index = 0;
             process_line(1);
+            save_index();
+            output_labels();
             return error;
         }
 
+        /// <summary>
+        /// Print labels list and memory status to "Labels_"+AGC_Code_File
+        /// </summary>
         private void output_labels()
         {if(File.Exists("Labels_"+AGC_Code_File))
         { File.Delete("Labels_" + AGC_Code_File); }
@@ -975,15 +1051,39 @@ namespace AGC_SUPPORT
           fs.Dispose();
           StreamWriter sw = new StreamWriter("Labels_" + AGC_Code_File, true);
         string output;
+        sw.Write("=============================\nLabels list & adress : \n=============================\n");
         foreach (KeyValuePair<string, int> kvp in labels)
         {
-            output = String.Format("Label : {0} - Adress : 0x{1:X} \n", kvp.Key, kvp.Value);
+            output = String.Format("Label : {0} - Adress : 0x{1:X4} \n", kvp.Key, kvp.Value);
+            sw.Write(output);
+        }
+        sw.Write("\n=============================\nMemory usage : \n=============================\n");
+        for(int i=0;i<=7;i++)
+        {
+            output = String.Format("EBank : {0} - {1} word(s) used. \n", i, bank_count[i]);
+            sw.Write(output);
+        }
+        sw.Write("=============================\n");
+        for(int i=0;i<=31;i++)
+        {
+            output = String.Format("FBank : {0} - {1} word(s) used. \n", i, bank_count[i+8]);
+            sw.Write(output);
+        }
+        sw.Write("=============================\n");
+        for (int i = 32; i <= 35; i++)
+        {
+            output = String.Format("SuperBank : {0} - {1} word(s) used. \n", i, bank_count[i + 8]);
             sw.Write(output);
         }
         sw.Close();
         }
 
-        public int process_line(int mode)
+        /// <summary>
+        /// Read the AGC Code file and process lines
+        /// </summary>
+        /// <param name="mode">0 : process labels - 1: process opcodes</param>
+        /// <returns>error index</returns>
+        private int process_line(int mode)
         {
             String current;
             char[] sep = new char[] { '\t' };
@@ -1015,8 +1115,8 @@ namespace AGC_SUPPORT
                                         case "EBANK": switch_bank(items); break;
                                         case "SETLOC": bank_index = (ushort)Int16.Parse(items[2], System.Globalization.NumberStyles.HexNumber); break;
                                         case "2FCADR": lerror = toFCADR(items); break;
-                                        case "ERASE": bank_index++; break;
-                                        default: bank_index++; break;
+                                        case "ERASE": B.set_sword((ushort)bank_index, (ushort)0); B.write_bank(); bank_index++; break;
+                                        default: B.set_sword((ushort)bank_index, (ushort)0); B.write_bank(); bank_index++; break;
                                     }
                                 }
                                 catch { }
@@ -1039,7 +1139,12 @@ namespace AGC_SUPPORT
             return error;
         }
 
-        public int resolve_labels(String[] items)
+        /// <summary>
+        /// Resolve the labels adress
+        /// </summary>
+        /// <param name="items">the current line</param>
+        /// <returns>error index</returns>
+        private int resolve_labels(String[] items)
         {
                 int adress = B.get_ba()/16 + bank_index;
                 int val = 0;
@@ -1055,7 +1160,7 @@ namespace AGC_SUPPORT
                 {
                     case "=": 
                         if(error!=-5)
-                        { B.set_sword((ushort)bank_index, new sWord(ResolveOperand(items[2])));
+                        { B.set_sword((ushort)bank_index, ResolveOperand(items[2]));
                         B.write_bank();} break;
                     case "2FCADR": lerror = toFCADR(items);
                         return lerror;
@@ -1064,27 +1169,36 @@ namespace AGC_SUPPORT
             return 0;
         }
 
-        public int resolve_opcode(String[] items)
+        /// <summary>
+        /// Resolve the opcode and add a computed operand
+        /// </summary>
+        /// <param name="items">the current line</param>
+        /// <returns>error index</returns>
+        private int resolve_opcode(String[] items)
         { ushort opcode = 0;
           ushort adress = 0;
           if (fix.opcode.TryGetValue(items[1], out opcode)) { opcode *= 4096; }
-          else if (fix.quarter.TryGetValue(items[1], out opcode)) { opcode *= 1024; }
+          else if (fix.quarter.TryGetValue(items[1], out opcode)) { opcode *= 1024;}
           else if (fix.extrac.TryGetValue(items[1], out opcode)) { opcode *= 4096; }
           else if (fix.extraq.TryGetValue(items[1], out opcode)) { opcode *= 1024; }
           else if (fix.IACode.TryGetValue(items[1], out opcode))
           {
               if (opcode == 7)
               {
-                  if (B.isErasable()) { B.set_sword((ushort)bank_index, new sWord(0x3000, true)); }
-                  else { B.set_sword((ushort)bank_index, new sWord((ushort)(0x1001+bank_index), true)); }
+                  if (B.isErasable()) { B.set_sword((ushort)bank_index, 0x3000); }
+                  else if (FB == 2 | FB == 3) { B.set_sword((ushort)bank_index, (ushort)(0x1001 + B.get_ba() + bank_index)); }
+                  else { B.set_sword((ushort)bank_index, (ushort)(0x1001 + 0x0400 + bank_index)); }
               }
+              else { B.set_sword((ushort)bank_index, (ushort)opcode); }
+              bank_index++;
+              return 0;
           }
           else
           {
               switch (items[1])
               {
                   case "SETLOC": error = SETLOC(items); return 0;
-                  case "ERASE": bank_index++; break;
+                  case "ERASE": bank_index++; return 0;
                   case "BANK": switch_bank(items); return 0;
                   case "EBANK": switch_bank(items); return 0;
                   case "=": bank_index++; return 0;
@@ -1093,13 +1207,17 @@ namespace AGC_SUPPORT
               }
           }
           adress = ResolveOperand(items[2]);
-          sWord ad = new sWord((ushort)(opcode + adress), true);
-          B.set_sword((ushort)bank_index, ad);
+          B.set_sword((ushort)bank_index, (ushort)(opcode+adress));
           B.write_bank();
           bank_index += 1;
         return 0;}
 
-        public int SETLOC(string[] item)
+        /// <summary>
+        /// Process the SETLOC Pre-processor word
+        /// </summary>
+        /// <param name="item">The current line</param>
+        /// <returns>error index</returns>
+        private int SETLOC(string[] item)
         {
             int val = 0;
             int keyval;
@@ -1127,7 +1245,12 @@ namespace AGC_SUPPORT
             return 0;
         }
 
-        public int toFCADR(string[] item)
+        /// <summary>
+        /// Process the 2FCADR Pre-processor word
+        /// </summary>
+        /// <param name="item">the current line</param>
+        /// <returns>error index</returns>
+        private int toFCADR(string[] item)
         {
             sWord adr = null;
             try { adr = new sWord((ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber), true);}
@@ -1147,14 +1270,14 @@ namespace AGC_SUPPORT
             int tad = adr.getVal(10, 14);
             if (tad < 4)
             {
-                B.set_sword((ushort)bank_index, new sWord((ushort)(adr.getVal(10, 14)), true));
+                B.set_sword((ushort)bank_index, (ushort)(adr.getVal(10, 14)));
             }
             else
             {
-                B.set_sword((ushort)bank_index, new sWord((ushort)(adr.getVal(10, 14) - 4), true));
+                B.set_sword((ushort)bank_index, (ushort)(adr.getVal(10, 14) - 4));
             }            
                 bank_index++;
-                B.set_sword((ushort)bank_index, new sWord(adr.getVal(0, 9), true));
+                B.set_sword((ushort)bank_index, (ushort)(adr.getVal(0, 9)));
                 bank_index++;
                 B.write_bank();
                 if(FC_count > 0)
@@ -1162,7 +1285,12 @@ namespace AGC_SUPPORT
                 return 0;            
         }
 
-        public ushort ResolveOperand(string item)
+        /// <summary>
+        /// Compute the operand from the line
+        /// </summary>
+        /// <param name="item">the current line</param>
+        /// <returns>error index</returns>
+        private ushort ResolveOperand(string item)
         {
             ushort adress = 0;
             try { adress = (ushort)Int16.Parse(item, System.Globalization.NumberStyles.HexNumber); }
@@ -1198,7 +1326,11 @@ namespace AGC_SUPPORT
             return adress;
         }
 
-        public void switch_bank(string[] items)
+        /// <summary>
+        /// Switch between banks following the BANK/EBANK pre-processor word
+        /// </summary>
+        /// <param name="items">the current line</param>
+        private void switch_bank(string[] items)
         {
             save_index();
             B.write_bank();
@@ -1220,7 +1352,10 @@ namespace AGC_SUPPORT
 
         }
 
-        public void save_index()
+        /// <summary>
+        /// Save the bank_index to the bank_index array (bank_count) to keep track of the used area of the bank
+        /// </summary>
+        private void save_index()
         {
            if(B.isErasable())
            {
