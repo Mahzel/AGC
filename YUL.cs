@@ -46,7 +46,7 @@ namespace nYUL
             {
                 File.Delete(AGC_Bit_File);
             }
-            AGC_Bit = File.Create("AGC_Bin.bin");
+            AGC_Bit = File.Create(AGC_Bit_File);
             for (int j = 0; j < 655360; j++)
             {
                 AGC_Bit.Write(new byte[] { 0 }, 0, 1);
@@ -91,6 +91,9 @@ namespace nYUL
                 process_line(0);
                 pass_count++;
                 Console.WriteLine("Compile pass : {0}", pass_count);
+                if(labels.) // TODO !!!!!!!!!!!!!!!!! check if labels are empty to skip labels resolve pass
+                {
+                }
             }
             if (pass_count == max_pass)
             {
