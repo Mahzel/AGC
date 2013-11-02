@@ -20,9 +20,12 @@ namespace nDSKY
 
         public void DStart()
         {
-            while(true)
+            int i = 0;
+            while(i < 25)
             {
                 Thread.Sleep(100);
+                write_chan(0, 2);
+                i++;
             }
         }
 

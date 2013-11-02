@@ -32,6 +32,7 @@ namespace nYUL
         int lerror = -6;
         int FC_count = 0;
         string bank_type = "FB";
+        string filename;
 
         /// <summary>
         /// Constructor for the compiler
@@ -41,6 +42,7 @@ namespace nYUL
         public YUL(String FInput, String FOutput)
         {
             AGC_Code_File = FInput;
+            filename = Path.GetFileName(AGC_Code_File);
             AGC_Bit_File = FOutput;
             if (File.Exists(AGC_Bit_File))
             {
@@ -90,15 +92,18 @@ namespace nYUL
                 bank_index = 0;
                 process_line(0);
                 pass_count++;
-                Console.WriteLine("Compile pass : {0}", pass_count);
-                if(labels.) // TODO !!!!!!!!!!!!!!!!! check if labels are empty to skip labels resolve pass
+                Console.WriteLine("Labels pass : {0}", pass_count);
+                if(labels.Keys.Count() == 0)
                 {
+                    Console.WriteLine("No labels found");
+                    lerror = 0;
                 }
             }
             if (pass_count == max_pass)
             {
                 return -6;
             }
+            Console.WriteLine("Done");
             FB = 0;
             EB = 0;
             FEB = 0;
@@ -108,9 +113,15 @@ namespace nYUL
                 bank_count[i] = 0;
             }
             bank_index = 0;
+            Console.WriteLine("Compiling...");
             process_line(1);
             save_index();
-            output_labels();
+            if (labels.Keys.Count != 0)
+            {
+                Console.WriteLine("Writing labels recap file");
+                output_labels();
+                Console.WriteLine("Done.");
+            }
             return error;
         }
 
@@ -119,11 +130,11 @@ namespace nYUL
         /// </summary>
         private void output_labels()
         {
-            if (File.Exists("Labels_" + AGC_Code_File))
+            if (File.Exists("Labels_" + filename))
             {
-                File.Delete("Labels_" + AGC_Code_File);
+                File.Delete("Labels_" + filename);
             }
-            FileStream fs = File.Create("Labels_" + AGC_Code_File);
+            FileStream fs = File.Create("Labels_" + filename);
             fs.Close();
             fs.Dispose();
             StreamWriter sw = new StreamWriter("Labels_" + AGC_Code_File, true);
