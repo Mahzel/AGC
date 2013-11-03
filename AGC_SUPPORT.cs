@@ -87,8 +87,8 @@ namespace AGC_SUPPORT
 		{
 			hex = ihex;
 			no_parity = false;
-			word = hexToByte ();
-			buildStr ();
+            word = hexToByte();
+            parity();
 		}
 
 		/// <summary>
@@ -101,7 +101,6 @@ namespace AGC_SUPPORT
 			no_parity = false;
 			hex = byteToHex ();
 			parity ();
-			buildStr ();
 		}
 
 		/// <summary>
@@ -114,7 +113,6 @@ namespace AGC_SUPPORT
 			hex = ihex;
 			no_parity = no_par;
 			word = hexToByte ();
-			buildStr ();
 		}
 
 		/// <summary>
@@ -130,7 +128,6 @@ namespace AGC_SUPPORT
 			if (!no_par) {
 				word = parity ();
 			}
-			buildStr ();
 		}
 
 		/// <summary>
@@ -419,6 +416,7 @@ namespace AGC_SUPPORT
 		/// <returns>Hex String "0x{value}"</returns>
 		public String getHexS ()
 		{
+            buildStr();
 			return hexS;
 		}
 
@@ -428,6 +426,7 @@ namespace AGC_SUPPORT
 		/// <returns>Bin string "0b{value}"</returns>
 		public String getBinS ()
 		{
+            buildStr();
 			return binS;
 		}
 	}
@@ -563,6 +562,21 @@ namespace AGC_SUPPORT
 				fs.Dispose ();
 			}
 		}
+
+        public void write_word(int offset)
+        {
+            FileStream fs = File.OpenWrite(AGC_file);
+            if (is_ErType)
+            {
+                fs.Seek(b_adress + offset, SeekOrigin.Begin);
+                temp = new sWord(MEM_ARRAY[offset], true);
+                byte[] tmp = temp.getWord();
+                Array.Reverse(tmp);
+                fs.Write(tmp, 0, 16);
+            }
+            fs.Close();
+            fs.Dispose();
+        }
 
 		/// <summary>
 		/// <para>compute the base adress of the bank</para>

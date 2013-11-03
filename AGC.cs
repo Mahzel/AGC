@@ -24,7 +24,8 @@ namespace nAGC
         /// BANK in use
         /// </summary>
         BANK PB;
-        BANK EB;
+        BANK wB;
+        BANK tB;
         String AGC_File;
         /// <summary>
         /// Quarter code holding variable
@@ -34,6 +35,10 @@ namespace nAGC
         bool e_mem;
         Channels chan;
         int test_int;
+        bool fFixed;
+        bool tEr;
+        ushort tId;
+        int tFEB;
 
         /// <summary>
         /// AGC builder placeholder
@@ -60,7 +65,8 @@ namespace nAGC
                 clock.c_start ();
                 running = true;
                 PB = new BANK (false, 0, 0, AGC_File); //load the current pgrogram bank - at launch : FB0
-                EB = new BANK (true, 0, 0, AGC_File); //load a default EB 0
+                wB = new BANK (true, 0, 0, AGC_File); //load a default EB 0
+                fFixed = false;
                 Console.WriteLine ("AGC Started");
                 e_mem = build_adress_reg (PB.get_word (RegBank.get_word (5).getHex ()));
                 RegBank.set_sword (11, PB.get_word (RegBank.get_word (5).getHex ()).getVal (12, 15)); //set SQ reg to opcode value
@@ -91,6 +97,10 @@ namespace nAGC
                 int cycle_count = 0;
                 clock.c_start();
                 exec_opc(false);
+                if((RegBank.get_word(3).getHex() != wB.getId()) && wB.isErasable())
+                { switch_bank(true);}
+                if((RegBank.get_word(4).getHex() != wB.getId()) && !wB.isErasable())
+                { switch_bank(false);}
                 e_mem = build_adress_reg(PB.get_word(RegBank.get_word(5).getHex()));
                 RegBank.set_sword(11, PB.get_word(RegBank.get_word(5).getHex()).getVal(12, 15)); //set SQ reg to opcode value
                 QC = PB.get_word(RegBank.get_word(5).getHex()).getVal(10, 11);
@@ -104,29 +114,18 @@ namespace nAGC
             Console.WriteLine("AGC halted");
         }
 
-        public void switch_work_bank(bool erasable)
+        public void switch_bank(bool erasable)
         {
             if (erasable)
             {
-                if (PB.isErasable() && (PB.getId() != RegBank.get_word(3).getHex()))
-                {
-                    PB.write_bank();
-                    PB = new BANK(true, RegBank.get_word(3).getHex(), 0, AGC_File);
-                }
-                else if (!PB.isErasable())
-                {
-                    PB = new BANK(true, RegBank.get_word(3).getHex(), 0, AGC_File);
-                }
+                wB.write_bank();
+                wB = new BANK(true,RegBank.get_word(3).getHex(),0,AGC_File);
             }
-            else if (!PB.isErasable() && (PB.getId() != RegBank.get_word(4).getHex()))
+            else 
             {
-                PB = new BANK(false, RegBank.get_word(4).getHex(), 0, AGC_File);
+                wB = new BANK(false, RegBank.get_word(4).getHex(), FEB, AGC_File);
             }
-            else if (PB.isErasable())
-            {
-                PB.write_bank();
-                PB = new BANK(false, RegBank.get_word(4).getHex(), 0, AGC_File);
-            }
+            
         }
         /// <summary>
         /// <para>edit adress registry (FB/EB/FEB/S) based on the bits 12-1 of the current instruction</para>
@@ -138,35 +137,34 @@ namespace nAGC
         public bool build_adress_reg(sWord adress)
         {
             ushort S = 0;
-            ushort EB = 0;
-            ushort FB = 0;
+
             bool erasable = false;
             if (adress.getVal(11,11) == 0 && adress.getVal(10, 10) == 0)
             {
                 if ((adress.getVal(9, 9) != 1) | (adress.getVal(8,8) != 1))
-                { // not to be normally used
-                    EB = (ushort)adress.getVal(8,9);
-                    RegBank.set_sword(3, EB); //set EB to fixed-erasable bank computed value
-                    S = adress.getVal(0, 7);
+                {
+                    S = adress.getVal(0, 11);
+                    fFixed = true;
                 }
                 else
                 {
                     S = (ushort)(adress.getVal(0, 9) - 0x300);
+                    fFixed = false;
                 }
                 erasable = true;
             }
             else if (adress.getVal(11,11) == 1)
             {
-                FB = (ushort)adress.getVal(10, 11);
-                RegBank.set_sword(4, FB); //set FB reg to fxed-fixed bank computed index
-                S = adress.getVal(0, 9);
+                S = adress.getVal(0, 11);
                 erasable = false;
+                fFixed = true;
             }
             else
             {
                 S = (ushort)(adress.getVal(0, 11) - 0x400);
                 //building offset -0x400 because bit 1 is nescessary in bit 11 in order for AGC to recognize a F-Switchable state
                 erasable = false;
+                fFixed = false;
             }
             RegBank.set_sword(12, S); //set S reg to operand value
             return erasable;
@@ -179,14 +177,19 @@ namespace nAGC
         public void exec_opc(Boolean extra)
         {
             int S = (int)RegBank.get_word(12).getHex();
+            
             if (!extra)
             {
                 switch (RegBank.get_word(11).getHex())
                 {
                     case 0:
+                        if(fFixed)
+                        { S=fFixed_switch(S); }
                         Console.WriteLine("TC {0:X4}", S);
                         break;
                     case 1:
+                        if (fFixed)
+                        {S= fFixed_switch(S); }
                         if (QC == 0)
                         {
                             Console.WriteLine("CCS {0:X4}", S);
@@ -198,6 +201,8 @@ namespace nAGC
                             break;
                         }
                     case 2:
+                        if (fFixed)
+                        { S=fFixed_switch(S - (QC * 1024)); }
                         switch (QC)
                         {
                             case 0:
@@ -208,6 +213,7 @@ namespace nAGC
                                 break;
                             case 2:
                                 Console.WriteLine("INCR {0:X4}", S);
+                                INCR(S);
                                 break;
                             case 3:
                                 Console.WriteLine("ADS {0:X4}", S);
@@ -215,12 +221,19 @@ namespace nAGC
                         }
                         break;
                     case 3:
+                        if (fFixed)
+                        { S=fFixed_switch(S); }
                         Console.WriteLine("CA {0:X4}", S);
+                        CA(S);
                         break;
                     case 4:
+                        if (fFixed)
+                        { S=fFixed_switch(S); }
                         Console.WriteLine("CS {0:X4}", S);
                         break;
                     case 5:
+                        if (fFixed)
+                        { S=fFixed_switch(S - (QC * 1024)); }
                         switch (QC)
                         {
                             case 0:
@@ -231,6 +244,7 @@ namespace nAGC
                                 break;
                             case 2:
                                 Console.WriteLine("TS {0:X4}", S);
+                                TS(S);
                                 break;
                             case 3:
                                 Console.WriteLine("XCH {0:X4}", S);
@@ -238,15 +252,94 @@ namespace nAGC
                         }
                         break;
                     case 6:
+                        if (fFixed)
+                        { S=fFixed_switch(S); }
                         Console.WriteLine("AD {0:X4}", S);
+                        AD(S);
                         break;
                     case 7:
+                        if (fFixed)
+                        { S=fFixed_switch(S); }
                         Console.WriteLine("MASK {0:X4}", S);
                         running = false;
                         break;
                 }
             }
+            else { } //TODO : EXTRACODES
+            if(fFixed)
+            { restore_fFixed(); }
         }
+
+        public void restore_fFixed()
+        {
+            wB.write_bank();
+            if(wB.isErasable() && (wB.getId() == 0))
+            { RegBank = new BANK(true, 0, 0, AGC_File); }
+            wB = new BANK(tEr, tId, tFEB, AGC_File);
+            e_mem = tEr;
+        }
+
+        public int fFixed_switch(int adr)
+        {
+                tEr = wB.isErasable();
+                tId = (ushort)wB.getId();
+                tFEB = wB.getFEB();
+                sWord s = new sWord((ushort)adr, true);
+                if (s.getVal(10, 11) == 0)
+                {
+                    if ((ushort)s.getVal(8, 9) == 0)
+                    { wB = RegBank; }
+                    else
+                    {
+                        wB = new BANK(true, (ushort)s.getVal(8, 9), 0, AGC_File);
+                    }
+                    adr = s.getVal(0, 7);
+                    e_mem = true;
+                }
+                else
+                {
+                    wB = new BANK(false, (ushort)s.getVal(10, 11), 0, AGC_File);
+                    adr = s.getVal(0, 11);
+                    e_mem = false;
+                }
+                return adr;
+        }
+
+        public void AD(int adress)
+        {
+            ushort val_adr = 0;
+            val_adr = wB.get_word((ushort)adress).getHex();    
+            RegBank.set_sword(0, (ushort)(val_adr + RegBank.get_word(0).getHex()));
+            RegBank.write_word(0);
+        }
+
+        public void TS(int adress)
+        {
+            if (e_mem)
+            {
+                wB.set_sword((ushort)adress, RegBank.get_word(0).getHex());
+                wB.write_word((ushort)adress);
+            }
+        }
+
+        public void INCR(int adress)
+        {
+            if (e_mem)
+            {
+                wB.set_sword((ushort)adress, (ushort)(wB.get_word((ushort)adress).getHex() + 1));
+                wB.write_word((ushort)adress);
+            }
+        }
+
+        public void CA(int adress)
+        {
+            RegBank.set_sword(0, 0);
+            AD(adress);
+        }
+
+
+        public void ovfCor()
+        { }
     }
 
     [TestClass]

@@ -23,7 +23,7 @@ namespace nDSKY
             int i = 0;
             while(i < 25)
             {
-                Thread.Sleep(100);
+                Thread.Sleep(10);
                 write_chan(0, 2);
                 i++;
             }

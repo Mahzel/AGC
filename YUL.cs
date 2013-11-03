@@ -33,6 +33,8 @@ namespace nYUL
         int FC_count = 0;
         string bank_type = "FB";
         string filename;
+        int toFC = 0;
+        int line_num = 0;
 
         /// <summary>
         /// Constructor for the compiler
@@ -90,7 +92,11 @@ namespace nYUL
                     bank_count[i] = 0;
                 }
                 bank_index = 0;
-                process_line(0);
+                error = process_line(0);
+                if(error != 0)
+                {
+                    Console.WriteLine("Error at Line {0} return {1}", line_num, error);
+                    return error; }
                 pass_count++;
                 Console.WriteLine("Labels pass : {0}", pass_count);
                 if(labels.Keys.Count() == 0)
@@ -114,7 +120,11 @@ namespace nYUL
             }
             bank_index = 0;
             Console.WriteLine("Compiling...");
-            process_line(1);
+            error = process_line(1);
+            if (error != 0)
+            {
+                Console.WriteLine("Error at Line {0} return {1}", line_num, error);
+                return error; }
             save_index();
             if (labels.Keys.Count != 0)
             {
@@ -122,7 +132,7 @@ namespace nYUL
                 output_labels();
                 Console.WriteLine("Done.");
             }
-            return error;
+            return 0;
         }
 
         /// <summary>
@@ -175,9 +185,9 @@ namespace nYUL
         {
             String current;
             char[] sep = new char[] { '\t' };
-            for (int i = 0; i < Cp_File.Length; i++)
+            for (int line_num = 0; line_num < Cp_File.Length; line_num++)
             {
-                if ((current = Cp_File[i]) != null)
+                if ((current = Cp_File[line_num]) != null)
                 {
                     if (bank_changed)
                     {
@@ -218,6 +228,7 @@ namespace nYUL
                                             break;
                                         case "2FCADR":
                                             lerror = toFCADR(items);
+                                            toFC++;
                                             break;
                                         case "ERASE":
                                             B.set_sword((ushort)bank_index, (ushort)0);
@@ -254,10 +265,12 @@ namespace nYUL
                 {
                     error = -4;
                 } //EOF
-                if (error != 0 && lerror != -6)
+                if (toFC == 0)
                 {
-                    return error;
+                    lerror = 0; ;
                 }
+                if(error != 0)
+                { return error; }
             }
             return error;
         }
@@ -284,7 +297,10 @@ namespace nYUL
                 case "=":
                     if (error != -5)
                     {
-                        B.set_sword((ushort)bank_index, ResolveOperand(items[2]));
+                        error = ResolveOperand(items[2]);
+                        if(error == -1)
+                        { return error; }
+                        B.set_sword((ushort)bank_index, (ushort)error);
                         B.write_bank();
                     }
                     break;
@@ -372,7 +388,10 @@ namespace nYUL
                         return -1;
                 }
             }
-            adress = ResolveOperand(items[2]);
+            error = ResolveOperand(items[2]);
+            if(error == -1)
+            { return error; }
+            else { adress = (ushort)error; }
             B.set_sword((ushort)bank_index, (ushort)(opcode + adress));
             B.write_bank();
             bank_index += 1;
@@ -479,7 +498,7 @@ namespace nYUL
         /// </summary>
         /// <param name="item">the current line</param>
         /// <returns>error index</returns>
-        private ushort ResolveOperand(string item)
+        private int ResolveOperand(string item)
         {
             ushort adress = 0;
             try
@@ -515,7 +534,7 @@ namespace nYUL
                 }
                 else
                 {
-                    return 1;
+                    return -1;
                 }
             }
             return adress;
