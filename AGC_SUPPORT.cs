@@ -68,6 +68,7 @@ namespace AGC_SUPPORT
 		/// </summary>
 		private String binS;
 
+        //Constructors
 		/// <summary>
 		/// empty word 0x000, parity check
 		/// </summary>
@@ -78,7 +79,6 @@ namespace AGC_SUPPORT
 			word = hexToByte ();
 			buildStr ();
 		}
-
 		/// <summary>
 		/// Constructor for hex value only, parity is checked by default
 		/// </summary>
@@ -90,7 +90,6 @@ namespace AGC_SUPPORT
             word = hexToByte();
             parity();
 		}
-
 		/// <summary>
 		/// Constructor for binary array, parity checked by default
 		/// </summary>
@@ -102,7 +101,6 @@ namespace AGC_SUPPORT
 			hex = byteToHex ();
 			parity ();
 		}
-
 		/// <summary>
 		/// Constructor for hex word, with parity bit calculation option
 		/// </summary>
@@ -114,7 +112,6 @@ namespace AGC_SUPPORT
 			no_parity = no_par;
 			word = hexToByte ();
 		}
-
 		/// <summary>
 		/// Constructor for binary array, with parity bit calculation option
 		/// </summary>
@@ -130,22 +127,7 @@ namespace AGC_SUPPORT
 			}
 		}
 
-		/// <summary>
-		/// Generate the strings from hex value and binary array
-		/// </summary>
-		private void buildStr ()
-		{
-			var builder = new StringBuilder ();
-			byte[] tb = new byte[16];
-			tb = word;
-			Array.ForEach (tb, x => builder.Append (x));
-			char[] ta = builder.ToString ().ToCharArray ();
-			Array.Reverse (ta);
-			binS = new String (ta);
-			binS = String.Format ("0b{0}", binS);
-			hexS = String.Format ("0x{0:X4}", hex);
-		}
-
+        //Conversion functions
 		/// <summary>
 		/// convert byte array to hex value (dec ushort)
 		/// </summary>
@@ -158,7 +140,6 @@ namespace AGC_SUPPORT
 			}
 			return hex;
 		}
-
 		/// <summary>
 		/// convert hex value to byte array
 		/// </summary>
@@ -192,7 +173,23 @@ namespace AGC_SUPPORT
 			}
 			return tB;
 		}
+        /// <summary>
+        /// Generate the strings from hex value and binary array
+        /// </summary>
+        private void buildStr()
+        {
+            var builder = new StringBuilder();
+            byte[] tb = new byte[16];
+            tb = word;
+            Array.ForEach(tb, x => builder.Append(x));
+            char[] ta = builder.ToString().ToCharArray();
+            Array.Reverse(ta);
+            binS = new String(ta);
+            binS = String.Format("0b{0}", binS);
+            hexS = String.Format("0x{0:X4}", hex);
+        }
 
+        //Word operations
 		/// <summary>
 		/// Cycle Left the binary array (Shift 14-1 left, bit 15 -> 1)
 		/// </summary>
@@ -207,7 +204,6 @@ namespace AGC_SUPPORT
 			tB = parity ();
 			return tB;
 		}
-
 		/// <summary>
 		/// Shift right the binary array
 		/// </summary>
@@ -222,7 +218,6 @@ namespace AGC_SUPPORT
 			tB = parity ();
 			return tB;
 		}
-
 		/// <summary>
 		/// Shift Left the binary array
 		/// </summary>
@@ -237,7 +232,6 @@ namespace AGC_SUPPORT
 			tB = parity ();
 			return tB;
 		}
-
 		/// <summary>
 		/// One's complement of the binary array
 		/// </summary>
@@ -255,7 +249,6 @@ namespace AGC_SUPPORT
 			tB = parity ();
 			return tB;
 		}
-
 		/// <summary>
 		/// Cycle Right the binary array : Shift right 15-2, bit 1 -> 15
 		/// </summary>
@@ -270,7 +263,6 @@ namespace AGC_SUPPORT
 			tB = parity ();
 			return tB;
 		}
-
 		/// <summary>
 		/// calculate the parity bit, so the number of 1 is odd.
 		/// </summary>
@@ -290,7 +282,6 @@ namespace AGC_SUPPORT
 			}
 			return word;
 		}
-
 		/// <summary>
 		/// check if the number of 1 is odd. If not, data may be corrupted
 		/// </summary>
@@ -310,6 +301,7 @@ namespace AGC_SUPPORT
 			}
 		}
 
+        //geters
 		/// <summary>
 		/// get the Hex ushort value
 		/// </summary>
@@ -318,7 +310,6 @@ namespace AGC_SUPPORT
 		{
 			return hex;
 		}
-
 		/// <summary>
 		/// get wether the parity bit should be set or not
 		/// </summary>
@@ -327,7 +318,6 @@ namespace AGC_SUPPORT
 		{
 			return no_parity;
 		}
-
 		/// <summary>
 		/// get the binary array
 		/// </summary>
@@ -336,7 +326,64 @@ namespace AGC_SUPPORT
 		{
 			return word;
 		}
+        /// <summary>
+        /// get the Hex String
+        /// </summary>
+        /// <returns>Hex String "0x{value}"</returns>
+        public String getHexS()
+        {
+            buildStr();
+            return hexS;
+        }
+        /// <summary>
+        /// get the binary string
+        /// </summary>
+        /// <returns>Bin string "0b{value}"</returns>
+        public String getBinS()
+        {
+            buildStr();
+            return binS;
+        }
 
+        //special geters
+        /// <summary>
+        /// calculate the decimal value of the opcode and return it
+        /// </summary>
+        /// <returns>ushort opcode</returns>
+        public ushort getOpCode()
+        {
+            return (ushort)(word[14] * 4 + word[13] * 2 + word[12]);
+        }
+        /// <summary>
+        /// calculate the decimal value of the operand (adress) and return it
+        /// </summary>
+        /// <returns>ushort adress</returns>
+        public ushort getOperand()
+        {
+            ushort retval = 0;
+            for (int i = 11; i >= 0; i--)
+            {
+                retval += (ushort)(word[i] * Math.Pow(2, i));
+            }
+            return retval;
+        }
+        /// <summary>
+        /// Get the decimal-equivalent of the specified binary range 0-15
+        /// </summary>
+        /// <param name="start">Lowest bit offset</param>
+        /// <param name="end">Highest bit offset</param>
+        /// <returns>The value of the binary range. Value is not shifted. Mean if you give : 10-15 it'll return as if it was a 0-5 binary word.</returns>
+        public ushort getVal(int start, int end)
+        {
+            ushort ret = 0;
+            for (int i = start; i <= end; i++)
+            {
+                ret += (ushort)(word[i] * Math.Pow(2, i - start));
+            }
+            return ret;
+        }
+
+        //seters
 		/// <summary>
 		/// set Hex (ushort) value
 		/// </summary>
@@ -346,7 +393,6 @@ namespace AGC_SUPPORT
 			hex = iHex;
 			hexToByte ();
 		}
-
 		/// <summary>
 		/// set the binary array
 		/// </summary>
@@ -356,7 +402,6 @@ namespace AGC_SUPPORT
 			word = iw;
 			byteToHex ();
 		}
-
 		/// <summary>
 		/// set wether the parity bit should be set or not
 		/// if set, perform the parity check.
@@ -371,63 +416,6 @@ namespace AGC_SUPPORT
 			} else {
 				word [15] = 0;
 			}
-		}
-
-		/// <summary>
-		/// calculate the decimal value of the opcode and return it
-		/// </summary>
-		/// <returns>ushort opcode</returns>
-		public ushort getOpCode ()
-		{
-			return (ushort)(word [14] * 4 + word [13] * 2 + word [12]);
-		}
-
-		/// <summary>
-		/// calculate the decimal value of the operand (adress) and return it
-		/// </summary>
-		/// <returns>ushort adress</returns>
-		public ushort getOperand ()
-		{
-			ushort retval = 0;
-			for (int i = 11; i >= 0; i--) {
-				retval += (ushort)(word [i] * Math.Pow (2, i));
-			}
-			return retval;
-		}
-
-		/// <summary>
-		/// Get the decimal-equivalent of the specified binary range 0-15
-		/// </summary>
-		/// <param name="start">Lowest bit offset</param>
-		/// <param name="end">Highest bit offset</param>
-		/// <returns>The value of the binary range. Value is not shifted. Mean if you give : 10-15 it'll return as if it was a 0-5 binary word.</returns>
-		public ushort getVal (int start, int end)
-		{
-			ushort ret = 0;
-			for (int i = start; i <= end; i++) {
-				ret += (ushort)(word [i] * Math.Pow (2, i - start));
-			}
-			return ret;
-		}
-
-		/// <summary>
-		/// get the Hex String
-		/// </summary>
-		/// <returns>Hex String "0x{value}"</returns>
-		public String getHexS ()
-		{
-            buildStr();
-			return hexS;
-		}
-
-		/// <summary>
-		/// get the binary string
-		/// </summary>
-		/// <returns>Bin string "0b{value}"</returns>
-		public String getBinS ()
-		{
-            buildStr();
-			return binS;
 		}
 	}
 
@@ -516,23 +504,61 @@ namespace AGC_SUPPORT
 			}            
 		}
 
+        //geters
 		/// <summary>
 		/// get the sWord at the given offset (in MEMORY ARRAY), building word from decimal value
 		/// </summary>
 		/// <param name="offset_index">offset index is the memory adress in the bank</param>
 		/// <returns>the sWord at the given offset</returns>
-		public sWord get_word (ushort offset_index)
+		public sWord get_sword (ushort offset_index)
 		{
 			return new sWord (MEM_ARRAY [offset_index], true);
 		}
+        public ushort get_word(ushort offset_index)
+        {
+            return MEM_ARRAY[offset_index];
+        }
+        /// <summary>
+        /// return the base adress of the current bank
+        /// </summary>
+        /// <returns>The base adress in the file. To get the AGC adress, divide by 16.</returns>
+        public int get_ba()
+        {
+            return b_adress;
+        }
+        /// <summary>
+        /// return wether the bank is erasable
+        /// </summary>
+        /// <returns>TRUE : bank is Erasable</returns>
+        public bool isErasable()
+        {
+            return is_ErType;
+        }
+        /// <summary>
+        /// Return the bank id
+        /// </summary>
+        /// <returns>the bank Id</returns>
+        public int getId()
+        {
+            return bank_id;
+        }
+        /// <summary>
+        /// return the Fiexed Extention Bit value
+        /// </summary>
+        /// <returns>The FEB value is 0-1</returns>
+        public int getFEB()
+        {
+            return FEB;
+        }
 
+        //seters
 		/// <summary>
 		/// Set the word at the given offset (in MEMORY ARRAY.), inserting the decimal value
 		/// </summary>
 		/// <param name="offset_index">offset is the memory adress in the bank</param>
 		/// <param name="hex">the word value to write in the bank</param>
 		/// <returns>0 : writed / 1 : bank is read only</returns>
-		public int set_sword (ushort offset_index, ushort hex)
+		public int set_word (ushort offset_index, ushort hex)
 		{
 			if (is_ErType | compiling) {
 				MEM_ARRAY [offset_index] = hex;
@@ -541,7 +567,20 @@ namespace AGC_SUPPORT
 				return 1;
 			}
 		}
+        public int set_sword(ushort offset_index, sWord word)
+        {
+            if (is_ErType | compiling)
+            {
+                MEM_ARRAY[offset_index] = word.getHex();
+                return 0;
+            }
+            else
+            {
+                return 1;
+            }
+        }
 
+        //file operation
 		/// <summary>
 		/// write the bank to the binary output file
 		/// </summary>
@@ -562,7 +601,6 @@ namespace AGC_SUPPORT
 				fs.Dispose ();
 			}
 		}
-
         public void write_word(int offset)
         {
             FileStream fs = File.OpenWrite(AGC_file);
@@ -578,6 +616,7 @@ namespace AGC_SUPPORT
             fs.Dispose();
         }
 
+        //msciallaneous
 		/// <summary>
 		/// <para>compute the base adress of the bank</para>
 		/// <para>base adress in bin file. AGC base adress is b_adress / 16;</para>
@@ -603,42 +642,6 @@ namespace AGC_SUPPORT
 			} else {
 				b_adress = (bank_id * 256 * 16);//(id * e-bank size)*16b
 			}
-		}
-
-		/// <summary>
-		/// return the base adress of the current bank
-		/// </summary>
-		/// <returns>The base adress in the file. To get the AGC adress, divide by 16.</returns>
-		public int get_ba ()
-		{
-			return b_adress;
-		}
-
-		/// <summary>
-		/// return wether the bank is erasable
-		/// </summary>
-		/// <returns>TRUE : bank is Erasable</returns>
-		public bool isErasable ()
-		{
-			return is_ErType;
-		}
-
-		/// <summary>
-		/// Return the bank id
-		/// </summary>
-		/// <returns>the bank Id</returns>
-		public int getId ()
-		{
-			return bank_id;
-		}
-
-		/// <summary>
-		/// return the Fiexed Extention Bit value
-		/// </summary>
-		/// <returns>The FEB value is 0-1</returns>
-		public int getFEB ()
-		{
-			return FEB;
 		}
 	}
 
@@ -875,8 +878,6 @@ namespace AGC_SUPPORT
                 return 0;
             }
         }
-
-
     }
 
 }

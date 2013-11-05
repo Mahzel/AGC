@@ -24,7 +24,7 @@ namespace nAGC
         /// BANK in use
         /// </summary>
         BANK PB;
-        BANK wB;
+        internal BANK wB;
         BANK tB;
         String AGC_File;
         /// <summary>
@@ -35,7 +35,7 @@ namespace nAGC
         bool e_mem;
         Channels chan;
         int test_int;
-        bool fFixed;
+        internal bool fFixed;
         bool tEr;
         ushort tId;
         int tFEB;
@@ -54,8 +54,12 @@ namespace nAGC
             e_mem = false;
             this.chan = chan;
             chan.regDelegate(this, read_chan);
+            PB = new BANK(false, 0, 0, AGC_File); //load the current pgrogram bank - at launch : FB0
+            wB = new BANK(true, 0, 0, AGC_File); //load a default EB 0
+            fFixed = false;
         }
-
+        
+        //Run functions
         /// <summary>
         /// start (run) a previous AGC intialized (powered up)
         /// </summary>
@@ -64,14 +68,11 @@ namespace nAGC
             if (!running) {
                 clock.c_start ();
                 running = true;
-                PB = new BANK (false, 0, 0, AGC_File); //load the current pgrogram bank - at launch : FB0
-                wB = new BANK (true, 0, 0, AGC_File); //load a default EB 0
-                fFixed = false;
                 Console.WriteLine ("AGC Started");
-                e_mem = build_adress_reg (PB.get_word (RegBank.get_word (5).getHex ()));
-                RegBank.set_sword (11, PB.get_word (RegBank.get_word (5).getHex ()).getVal (12, 15)); //set SQ reg to opcode value
-                QC = PB.get_word (RegBank.get_word (5).getHex ()).getVal (10, 11);
-                RegBank.set_sword (5, (ushort)(RegBank.get_word (5).getHex () + 1));
+                e_mem = build_adress_reg (PB.get_sword (RegBank.get_word (5)));
+                RegBank.set_word (11, PB.get_sword (RegBank.get_word (5)).getVal (12, 15)); //set SQ reg to opcode value
+                QC = PB.get_sword (RegBank.get_word (5)).getVal (10, 11);
+                RegBank.set_word (5, (ushort)(RegBank.get_word (5) + 1));
                 RegBank.write_bank ();
                 MCT ();
             } else {
@@ -79,17 +80,6 @@ namespace nAGC
             }
            
         }
-
-        public void read_chan(int index)
-        {
-                    Console.WriteLine("DSKY Wrote Index : {0} - Value : {1}",index, chan.get_chan(index));
-        }
-
-        public void write_chan(int index, ushort value)
-        {
-            chan.set_chan(this, index, value);
-        }
-
         private void MCT()
         {
             while (running)
@@ -97,14 +87,14 @@ namespace nAGC
                 int cycle_count = 0;
                 clock.c_start();
                 exec_opc(false);
-                if((RegBank.get_word(3).getHex() != wB.getId()) && wB.isErasable())
+                if((RegBank.get_word(3) != wB.getId()) && wB.isErasable())
                 { switch_bank(true);}
-                if((RegBank.get_word(4).getHex() != wB.getId()) && !wB.isErasable())
+                if((RegBank.get_word(4) != wB.getId()) && !wB.isErasable())
                 { switch_bank(false);}
-                e_mem = build_adress_reg(PB.get_word(RegBank.get_word(5).getHex()));
-                RegBank.set_sword(11, PB.get_word(RegBank.get_word(5).getHex()).getVal(12, 15)); //set SQ reg to opcode value
-                QC = PB.get_word(RegBank.get_word(5).getHex()).getVal(10, 11);
-                RegBank.set_sword(5, (ushort)(RegBank.get_word(5).getHex() + 1)); //Increment Z to next instruction
+                e_mem = build_adress_reg(PB.get_sword(RegBank.get_word(5)));
+                RegBank.set_word(11, PB.get_sword(RegBank.get_word(5)).getVal(12, 15)); //set SQ reg to opcode value
+                QC = PB.get_sword(RegBank.get_word(5)).getVal(10, 11);
+                RegBank.set_word(5, (ushort)(RegBank.get_word(5) + 1)); //Increment Z to next instruction
                 RegBank.write_bank();
                 while (cycle_count < 1)
                 {
@@ -113,20 +103,56 @@ namespace nAGC
             }
             Console.WriteLine("AGC halted");
         }
-
+        
+        //Bank management
         public void switch_bank(bool erasable)
         {
             if (erasable)
             {
                 wB.write_bank();
-                wB = new BANK(true,RegBank.get_word(3).getHex(),0,AGC_File);
+                wB = new BANK(true,RegBank.get_word(3),0,AGC_File);
             }
             else 
             {
-                wB = new BANK(false, RegBank.get_word(4).getHex(), FEB, AGC_File);
+                wB = new BANK(false, RegBank.get_word(4), FEB, AGC_File);
             }
             
         }
+        public void restore_fFixed()
+        {
+            wB.write_bank();
+            if (wB.isErasable() && (wB.getId() == 0))
+            { RegBank = new BANK(true, 0, 0, AGC_File); }
+            wB = new BANK(tEr, tId, tFEB, AGC_File);
+            e_mem = tEr;
+        }
+        public int fFixed_switch(int adr)
+        {
+            tEr = wB.isErasable();
+            tId = (ushort)wB.getId();
+            tFEB = wB.getFEB();
+            sWord s = new sWord((ushort)adr, true);
+            if (s.getVal(10, 11) == 0)
+            {
+                if ((ushort)s.getVal(8, 9) == 0)
+                { wB = RegBank; }
+                else
+                {
+                    wB = new BANK(true, (ushort)s.getVal(8, 9), 0, AGC_File);
+                }
+                adr = s.getVal(0, 7);
+                e_mem = true;
+            }
+            else
+            {
+                wB = new BANK(false, (ushort)s.getVal(10, 11), 0, AGC_File);
+                adr = s.getVal(0, 11);
+                e_mem = false;
+            }
+            return adr;
+        }
+        
+        //Execution
         /// <summary>
         /// <para>edit adress registry (FB/EB/FEB/S) based on the bits 12-1 of the current instruction</para>
         /// <para>detect usage of FB/EB register</para>
@@ -166,7 +192,7 @@ namespace nAGC
                 erasable = false;
                 fFixed = false;
             }
-            RegBank.set_sword(12, S); //set S reg to operand value
+            RegBank.set_word(12, S); //set S reg to operand value
             return erasable;
         }
         /// <summary>
@@ -176,170 +202,145 @@ namespace nAGC
         /// <param name="extra">Extracode instruction</param>
         public void exec_opc(Boolean extra)
         {
-            int S = (int)RegBank.get_word(12).getHex();
+            int S = (int)RegBank.get_word(12);
             
             if (!extra)
             {
-                switch (RegBank.get_word(11).getHex())
-                {
-                    case 0:
-                        if(fFixed)
-                        { S=fFixed_switch(S); }
-                        Console.WriteLine("TC {0:X4}", S);
-                        break;
-                    case 1:
-                        if (fFixed)
-                        {S= fFixed_switch(S); }
-                        if (QC == 0)
-                        {
-                            Console.WriteLine("CCS {0:X4}", S);
-                            break;
-                        }
-                        else
-                        {
-                            Console.WriteLine("TCF {0:X4}", S);
-                            break;
-                        }
-                    case 2:
-                        if (fFixed)
-                        { S=fFixed_switch(S - (QC * 1024)); }
-                        switch (QC)
-                        {
-                            case 0:
-                                Console.WriteLine("DAS {0:X4}", S);
-                                break;
-                            case 1:
-                                Console.WriteLine("LXCH {0:X4}", S);
-                                break;
-                            case 2:
-                                Console.WriteLine("INCR {0:X4}", S);
-                                INCR(S);
-                                break;
-                            case 3:
-                                Console.WriteLine("ADS {0:X4}", S);
-                                break;
-                        }
-                        break;
-                    case 3:
-                        if (fFixed)
-                        { S=fFixed_switch(S); }
-                        Console.WriteLine("CA {0:X4}", S);
-                        CA(S);
-                        break;
-                    case 4:
-                        if (fFixed)
-                        { S=fFixed_switch(S); }
-                        Console.WriteLine("CS {0:X4}", S);
-                        break;
-                    case 5:
-                        if (fFixed)
-                        { S=fFixed_switch(S - (QC * 1024)); }
-                        switch (QC)
-                        {
-                            case 0:
-                                Console.WriteLine("INDEX {0:X4}", S);
-                                break;
-                            case 1:
-                                Console.WriteLine("DXCH {0:X4}", S);
-                                break;
-                            case 2:
-                                Console.WriteLine("TS {0:X4}", S);
-                                TS(S);
-                                break;
-                            case 3:
-                                Console.WriteLine("XCH {0:X4}", S);
-                                break;
-                        }
-                        break;
-                    case 6:
-                        if (fFixed)
-                        { S=fFixed_switch(S); }
-                        Console.WriteLine("AD {0:X4}", S);
-                        AD(S);
-                        break;
-                    case 7:
-                        if (fFixed)
-                        { S=fFixed_switch(S); }
-                        Console.WriteLine("MASK {0:X4}", S);
-                        running = false;
-                        break;
-                }
+                stOpcode(S);
             }
             else { } //TODO : EXTRACODES
             if(fFixed)
             { restore_fFixed(); }
         }
-
-        public void restore_fFixed()
+        private void stOpcode(int S)
         {
-            wB.write_bank();
-            if(wB.isErasable() && (wB.getId() == 0))
-            { RegBank = new BANK(true, 0, 0, AGC_File); }
-            wB = new BANK(tEr, tId, tFEB, AGC_File);
-            e_mem = tEr;
-        }
-
-        public int fFixed_switch(int adr)
-        {
-                tEr = wB.isErasable();
-                tId = (ushort)wB.getId();
-                tFEB = wB.getFEB();
-                sWord s = new sWord((ushort)adr, true);
-                if (s.getVal(10, 11) == 0)
-                {
-                    if ((ushort)s.getVal(8, 9) == 0)
-                    { wB = RegBank; }
+            switch (RegBank.get_word(11))
+            {
+                case 0:
+                    if (fFixed)
+                    { S = fFixed_switch(S); }
+                    Console.WriteLine("TC {0:X4}", S);
+                    break;
+                case 1:
+                    if (fFixed)
+                    { S = fFixed_switch(S); }
+                    if (QC == 0)
+                    {
+                        Console.WriteLine("CCS {0:X4}", S);
+                        break;
+                    }
                     else
                     {
-                        wB = new BANK(true, (ushort)s.getVal(8, 9), 0, AGC_File);
+                        Console.WriteLine("TCF {0:X4}", S);
+                        break;
                     }
-                    adr = s.getVal(0, 7);
-                    e_mem = true;
-                }
-                else
-                {
-                    wB = new BANK(false, (ushort)s.getVal(10, 11), 0, AGC_File);
-                    adr = s.getVal(0, 11);
-                    e_mem = false;
-                }
-                return adr;
+                case 2:
+                    if (fFixed)
+                    { S = fFixed_switch(S - (QC * 1024)); }
+                    switch (QC)
+                    {
+                        case 0:
+                            Console.WriteLine("DAS {0:X4}", S);
+                            break;
+                        case 1:
+                            Console.WriteLine("LXCH {0:X4}", S);
+                            break;
+                        case 2:
+                            Console.WriteLine("INCR {0:X4}", S);
+                            INCR(S);
+                            break;
+                        case 3:
+                            Console.WriteLine("ADS {0:X4}", S);
+                            break;
+                    }
+                    break;
+                case 3:
+                    if (fFixed)
+                    { S = fFixed_switch(S); }
+                    Console.WriteLine("CA {0:X4}", S);
+                    CA(S);
+                    break;
+                case 4:
+                    if (fFixed)
+                    { S = fFixed_switch(S); }
+                    Console.WriteLine("CS {0:X4}", S);
+                    break;
+                case 5:
+                    if (fFixed)
+                    { S = fFixed_switch(S - (QC * 1024)); }
+                    switch (QC)
+                    {
+                        case 0:
+                            Console.WriteLine("INDEX {0:X4}", S);
+                            break;
+                        case 1:
+                            Console.WriteLine("DXCH {0:X4}", S);
+                            break;
+                        case 2:
+                            Console.WriteLine("TS {0:X4}", S);
+                            TS(S);
+                            break;
+                        case 3:
+                            Console.WriteLine("XCH {0:X4}", S);
+                            break;
+                    }
+                    break;
+                case 6:
+                    if (fFixed)
+                    { S = fFixed_switch(S); }
+                    Console.WriteLine("AD {0:X4}", S);
+                    AD(S);
+                    break;
+                case 7:
+                    if (fFixed)
+                    { S = fFixed_switch(S); }
+                    Console.WriteLine("MASK {0:X4}", S);
+                    running = false;
+                    break;
+            }
         }
-
+        
+        //OPCODES Function
         public void AD(int adress)
         {
             ushort val_adr = 0;
-            val_adr = wB.get_word((ushort)adress).getHex();    
-            RegBank.set_sword(0, (ushort)(val_adr + RegBank.get_word(0).getHex()));
+            val_adr = wB.get_word((ushort)adress);    
+            RegBank.set_word(0, (ushort)(val_adr + RegBank.get_word(0)));
             RegBank.write_word(0);
         }
-
         public void TS(int adress)
         {
             if (e_mem)
             {
-                wB.set_sword((ushort)adress, RegBank.get_word(0).getHex());
+                wB.set_word((ushort)adress, RegBank.get_word(0));
                 wB.write_word((ushort)adress);
             }
         }
-
         public void INCR(int adress)
         {
             if (e_mem)
             {
-                wB.set_sword((ushort)adress, (ushort)(wB.get_word((ushort)adress).getHex() + 1));
+                wB.set_word((ushort)adress, (ushort)(wB.get_word((ushort)adress) + 1));
                 wB.write_word((ushort)adress);
             }
         }
-
         public void CA(int adress)
         {
-            RegBank.set_sword(0, 0);
+            RegBank.set_word(0, 0);
             AD(adress);
         }
 
-
+        //Miscallaneous operations
         public void ovfCor()
         { }
+        public void read_chan(int index)
+        {
+            Console.WriteLine("DSKY Wrote Index : {0} - Value : {1}", index, chan.get_chan(index));
+        }
+        public void write_chan(int index, ushort value)
+        {
+            chan.set_chan(this, index, value);
+        }
     }
 
     [TestClass]
@@ -353,11 +354,11 @@ namespace nAGC
             AGC agc = new AGC("TestFile.agc", chan);
             ushort bit_adr = 0x401;
             ushort expected = 1;
-            agc.RegBank.set_sword(0, bit_adr);
+            agc.RegBank.set_word(0, bit_adr);
 
             //act
-            agc.build_adress_reg(agc.RegBank.get_word(0));
-            ushort actual = agc.RegBank.get_word(12).getHex();
+            agc.build_adress_reg(agc.RegBank.get_sword(0));
+            ushort actual = agc.RegBank.get_word(12);
 
             //assert
             Assert.AreEqual(expected, actual);
@@ -368,17 +369,17 @@ namespace nAGC
             //Arrange
             AGC agc = new AGC("TestFile.agc", chan);
             ushort bit_adr = 0x801;
-            ushort expected = 1;
-            ushort exp_FB = 2;
-            agc.RegBank.set_sword(0, bit_adr);
+            ushort expected = 0x801;
+            agc.RegBank.set_word(0, bit_adr);
 
             //act
-            agc.build_adress_reg(agc.RegBank.get_word(0));
-            ushort actual = agc.RegBank.get_word(12).getHex();
-            ushort actual_FB = agc.RegBank.get_word(4).getHex();
+            agc.build_adress_reg(agc.RegBank.get_sword(0));
+            ushort actual = agc.RegBank.get_word(12);
+            ushort actual_FB = agc.RegBank.get_word(4);
+            
             //assert
             Assert.AreEqual(expected, actual);
-            Assert.AreEqual(exp_FB, actual_FB);
+            Assert.AreEqual(true, agc.fFixed);
         }
         [TestMethod]
         public void test_BuildAdress_EFixed()
@@ -386,17 +387,17 @@ namespace nAGC
             //Arrange
             AGC agc = new AGC("TestFile.agc", chan);
             ushort bit_adr = 0x101;
-            ushort expected = 1;
-            ushort exp_EB = 1;
-            agc.RegBank.set_sword(0, bit_adr);
+            ushort expected = 0x101;
+            agc.RegBank.set_word(0, bit_adr);
 
             //act
-            agc.build_adress_reg(agc.RegBank.get_word(0));
-            ushort actual = agc.RegBank.get_word(12).getHex();
-            ushort actual_EB = agc.RegBank.get_word(3).getHex();
+            agc.build_adress_reg(agc.RegBank.get_sword(0));
+            ushort actual = agc.RegBank.get_word(12);
+            ushort actual_EB = agc.RegBank.get_word(3);
+            
             //assert
             Assert.AreEqual(expected, actual);
-            Assert.AreEqual(exp_EB, actual_EB);
+            Assert.AreEqual(true, agc.fFixed);
         }
         [TestMethod]
         public void test_BuildAdress_ESwitch()
@@ -405,13 +406,49 @@ namespace nAGC
             AGC agc = new AGC("TestFile.agc", chan);
             ushort bit_adr = 0x301;
             ushort expected = 1;
-            agc.RegBank.set_sword(0, bit_adr);
+            agc.RegBank.set_word(0, bit_adr);
 
             //act
-            agc.build_adress_reg(agc.RegBank.get_word(0));
-            ushort actual = agc.RegBank.get_word(12).getHex();
+            agc.build_adress_reg(agc.RegBank.get_sword(0));
+            ushort actual = agc.RegBank.get_word(12);
+            
             //assert
             Assert.AreEqual(expected, actual);
+        }
+        [TestMethod]
+        public void test_fFixed_switch()
+        {
+            //Arrange
+            AGC agc = new AGC("TestFile.agc", chan);
+            ushort adr = 0x801;
+            int expected_bank = 2;
+            
+            //act
+            agc.fFixed_switch(adr);
+            int bid = agc.wB.getId();
+            bool fix = agc.wB.isErasable();
+
+            //assert
+            Assert.AreEqual(expected_bank, bid);
+            Assert.AreEqual(fix, false);
+        }
+
+        [TestMethod]
+        public void test_eFixedSwitch()
+        {
+            //Arrange
+            AGC agc = new AGC("TestFile.agc", chan);
+            ushort adr = 0x101;
+            int expected_bank = 1;
+
+            //act
+            agc.fFixed_switch(adr);
+            int bid = agc.wB.getId();
+            bool fix = agc.wB.isErasable();
+
+            //assert
+            Assert.AreEqual(expected_bank, bid);
+            Assert.AreEqual(fix, true);
         }
     }
 
