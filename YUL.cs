@@ -34,6 +34,7 @@ namespace nYUL
         string bank_type = "FB";
         string filename;
         int line_num = 0;
+        Dictionary<int, string> YULErrors;
 
         /// <summary>
         /// Constructor for the compiler
@@ -92,13 +93,15 @@ namespace nYUL
                 }
                 bank_index = 0;
                 error = process_line(0);
-                if(error != 0)
+                if (error != 0)
                 {
-                    Console.WriteLine("Error at Line {0} return {1}", line_num, error);
-                    return error; }
+                    string errString = errorProcessing();
+                    Console.WriteLine("Error at Line {0} return {1} : {2} ", line_num +1, error, errString);
+                    return error;
+                }
                 pass_count++;
                 Console.WriteLine("Labels pass : {0}", pass_count);
-                if(labels.Keys.Count() == 0)
+                if (labels.Keys.Count() == 0)
                 {
                     Console.WriteLine("No labels found");
                     unresolvedLabelError = 0;
@@ -122,8 +125,10 @@ namespace nYUL
             error = process_line(1);
             if (error != 0)
             {
-                Console.WriteLine("Error at Line {0} return {1}", line_num, error);
-                return error; }
+                string errString = errorProcessing();
+                Console.WriteLine("Error at Line {0} return {1} : {2} ", line_num+1, error, errString);
+                return error;
+            }
             Bank.write_bank();
             save_index();
             if (labels.Keys.Count != 0)
@@ -145,7 +150,7 @@ namespace nYUL
         {
             String current;
             char[] sep = new char[] { '\t' };
-            for (int line_num = 0; line_num < Cp_File.Length; line_num++)
+            for (line_num = 0; line_num < Cp_File.Length; line_num++)
             {
                 if ((current = Cp_File[line_num]) != null)
                 {
@@ -154,21 +159,28 @@ namespace nYUL
                         switchBank();
                     }
                     String[] items = current.Split(sep, StringSplitOptions.None);
-                    switch (mode)
+                    if (!items[0].Contains("#"))
                     {
-                        case 0:
-                            labelMode(items);
-                            break;
-                        case 1:
-                            compileMode(items);
-                            break;
+                        switch (mode)
+                        {
+                            case 0:
+                                labelMode(items);
+                                break;
+                            case 1:
+                                compileMode(items);
+                                break;
+                        }
                     }
                 }
                 else
                 {
                     error = -4;
                 } //EOF
-                if(error != 0)
+                if (!check_index())
+                {
+                    error = -7;
+                }
+                if (error != 0)
                 { return error; }
             }
             if (unresolvedFCAdrCount == 0)
@@ -207,7 +219,14 @@ namespace nYUL
                 }
             }
         }
-        
+        private string errorProcessing()
+        {
+            fillErrorDict();
+            string val;
+            YULErrors.TryGetValue(error, out val);
+            return val;
+        }
+
         //resolving unit
         /// <summary>
         /// Resolve the labels adress
@@ -246,19 +265,11 @@ namespace nYUL
         {
             ushort opcode = 0;
             ushort adress = 0;
-            if (fixedValue.opcode.TryGetValue(items[1], out opcode))
+            if (fixedValue.opcode.TryGetValue(items[1], out opcode) || fixedValue.extrac.TryGetValue(items[1], out opcode))
             {
                 opcode *= 4096;
             }
-            else if (fixedValue.quarter.TryGetValue(items[1], out opcode))
-            {
-                opcode *= 1024;
-            }
-            else if (fixedValue.extrac.TryGetValue(items[1], out opcode))
-            {
-                opcode *= 4096;
-            }
-            else if (fixedValue.extraq.TryGetValue(items[1], out opcode))
+            else if (fixedValue.quarter.TryGetValue(items[1], out opcode) || fixedValue.extraq.TryGetValue(items[1], out opcode))
             {
                 opcode *= 1024;
             }
@@ -291,7 +302,7 @@ namespace nYUL
                 return preProcessorOp(items, true);
             }
             error = ResolveOperand(items[2]);
-            if(error == -1)
+            if (error == -1)
             { return error; }
             else { adress = (ushort)error; }
             Bank.set_word((ushort)bank_index, (ushort)(opcode + adress));
@@ -339,7 +350,7 @@ namespace nYUL
                 }
                 else
                 {
-                    return -1;
+                    return -2;
                 }
             }
             return adress;
@@ -351,27 +362,30 @@ namespace nYUL
             switch (items[1])
             {
                 case "SETLOC":
-                    error = SETLOC(items);
-                    return 0;
+                    return SETLOC(items);
                 case "ERASE":
                     if (mode) { Bank.set_word((ushort)bank_index, 0); }
                     bank_index++;
                     return 0;
                 case "BANK":
-                    prepareBankSwitch(items);
-                    return 0;
+                    return prepareBankSwitch(items);
                 case "EBANK":
-                    prepareBankSwitch(items);
-                    return 0;
+                    return prepareBankSwitch(items);
                 case "=":
                     return assignValue(items, mode);
                 case "2FCADR":
                     unresolvedFCAdrCount = toFCADR(items, mode);
                     return 0;
                 default:
-                    if (mode) { Bank.set_word((ushort)bank_index, 0); }
-                    bank_index++;
-                    return 0;
+                    ushort val;
+                    if (fixedValue.opcode.TryGetValue(items[1], out val) ||
+                        fixedValue.quarter.TryGetValue(items[1], out val) ||
+                        fixedValue.extraq.TryGetValue(items[1], out val) ||
+                        fixedValue.IACode.TryGetValue(items[1], out val) ||
+                        fixedValue.IACode.TryGetValue(items[1], out val) ||
+                        fixedValue.extrac.TryGetValue(items[1], out val))
+                    { return 0; }
+                    return -1;
             }
         }
         private int assignValue(String[] items, bool mode)
@@ -484,29 +498,37 @@ namespace nYUL
         /// Switch between banks following the BANK/EBANK pre-processor word
         /// </summary>
         /// <param name="items">the current line</param>
-        private void prepareBankSwitch(string[] items)
-        {   
+        private int prepareBankSwitch(string[] items)
+        {
             save_index();
             Bank.write_bank();
             switch (items[1])
             {
                 case "BANK":
                     FB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
-                    if (FB > 32)
-                    {FEB = 1;}
-                    else
-                    {FEB = 0;}
-                    bank_index = bank_index_counter[FB];
-                    bank_type = "FB";
-                    break;
+                    if (FB <= 35 && FB >= 0)
+                    {
+                        if (FB > 32)
+                        { FEB = 1; }
+                        else
+                        { FEB = 0; }
+                        bank_index = bank_index_counter[FB];
+                        bank_type = "FB";
+                        break;
+                    }
+                    else { return -3; }
                 case "EBANK":
                     EB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
-                    bank_index = bank_index_counter[EB];
-                    bank_type = "EB";
-                    break;
+                    if (EB >= 0 && EB <= 7)
+                    {
+                        bank_index = bank_index_counter[EB];
+                        bank_type = "EB";
+                        break;
+                    }
+                    else { return -3; }
             }
             bank_changed = true;
-
+            return 0;
         }
         private void switchBank()
         {
@@ -541,6 +563,22 @@ namespace nYUL
                 {
                     bank_index_counter[Bank.getId() + 16] = bank_index;
                 }
+            }
+        }
+        private bool check_index()
+        {
+            switch (bank_type)
+            {
+                case "FB":
+                    if (bank_index > 1023)
+                    { return false; }
+                    return true;
+                case "EB":
+                    if (bank_index > 255)
+                    { return false; }
+                    return true;
+                default:
+                    return true;
             }
         }
 
@@ -585,5 +623,19 @@ namespace nYUL
             }
             sw.Close();
         }
+        private void fillErrorDict()
+        {
+            YULErrors = new Dictionary<int, string>();
+            YULErrors.Add(0, "no error");
+            YULErrors.Add(-1, "Unknown Opcode");
+            YULErrors.Add(-2, "Invalid Operand");
+            YULErrors.Add(-3, "Invalid Bank ID");
+            YULErrors.Add(-4, "End of File reached");
+            YULErrors.Add(-5, "Label already exist");
+            YULErrors.Add(-6, "Unresolved label");
+            YULErrors.Add(-7, "Bank index out of range");
+        }
+
     }
+
 }
