@@ -58,7 +58,7 @@ namespace AGC_SUPPORT
 		/// <summary>
 		/// parity bit option. TRUE = NO PARITY
 		/// </summary>
-		bool no_parity;
+		bool parity;
 		/// <summary>
 		/// hex string "0x{value}"
 		/// </summary>
@@ -67,6 +67,7 @@ namespace AGC_SUPPORT
 		/// binary string "0b{array}"
 		/// </summary>
 		private String binS;
+        private bool isNegative;
 
         //Constructors
 		/// <summary>
@@ -75,7 +76,7 @@ namespace AGC_SUPPORT
 		public sWord ()
 		{
 			hex = 0x0000;
-			no_parity = false;
+			parity = false;
 			word = hexToByte ();
 			buildStr ();
 		}
@@ -86,9 +87,10 @@ namespace AGC_SUPPORT
 		public sWord (ushort ihex)
 		{
 			hex = ihex;
-			no_parity = false;
+			parity = false;
             word = hexToByte();
-            parity();
+            negativeState();
+            setPar(false);
 		}
 		/// <summary>
 		/// Constructor for binary array, parity checked by default
@@ -97,34 +99,43 @@ namespace AGC_SUPPORT
 		public sWord (byte[] iWord)
 		{
 			word = iWord;
-			no_parity = false;
+			parity = false;
+            setPar(false);
 			hex = byteToHex ();
-			parity ();
+            negativeState();
 		}
 		/// <summary>
 		/// Constructor for hex word, with parity bit calculation option
 		/// </summary>
 		/// <param name="ihex">hex word</param>
-		/// <param name="no_par">FALSE = parity bit enabled</param>
-		public sWord (ushort ihex, bool no_par)
+		/// <param name="argParity">FALSE = parity bit enabled</param>
+		public sWord (ushort ihex, bool argParity)
 		{
 			hex = ihex;
-			no_parity = no_par;
-			word = hexToByte ();
+			parity = argParity;
+            word = hexToByte();
+            if (argParity)
+            {
+                word = calcParity();
+            }
+            hex = byteToHex(); 
+            negativeState();
 		}
 		/// <summary>
 		/// Constructor for binary array, with parity bit calculation option
 		/// </summary>
 		/// <param name="iWord">16b word array</param>
-		/// <param name="no_par">FALSE = parity bit enabled</param>
-		public sWord (byte[] iWord, bool no_par)
+		/// <param name="argParity">FALSE = parity bit enabled</param>
+		public sWord (byte[] iWord, bool argParity)
 		{
 			word = iWord;
-			no_parity = no_par;
-			hex = byteToHex ();
-			if (!no_par) {
-				word = parity ();
-			}
+			parity = argParity;
+            if (argParity)
+            {
+                word = calcParity();
+            }
+			hex = byteToHex ();		
+            negativeState();
 		}
 
         //Conversion functions
@@ -168,8 +179,8 @@ namespace AGC_SUPPORT
 					tB [i] = 0;
 				}
 			}
-			if (!no_parity) {
-				tB = parity ();
+			if (parity) {
+				tB = calcParity();
 			}
 			return tB;
 		}
@@ -188,55 +199,69 @@ namespace AGC_SUPPORT
             binS = String.Format("0b{0}", binS);
             hexS = String.Format("0x{0:X4}", hex);
         }
+        private void negativeState()
+        {
+            if(word[14] == 1)
+            {
+                isNegative = true;
+            }
+            else
+            {
+                isNegative = false;
+            }
+        }
+        private bool negativeState(byte [] bytes)
+        {
+            if (bytes[14] == 1)
+            { return true; }
+            else { return false; }
+        }
 
         //Word operations
 		/// <summary>
 		/// Cycle Left the binary array (Shift 14-1 left, bit 15 -> 1)
 		/// </summary>
 		/// <returns>return cycled word, leave sWord intact</returns>
-		public byte[] CYL ()
+		public sWord CYL ()
 		{
 			byte[] tB = new byte[16];
 			for (int i = 13; i >= 0; i--) {
 				tB [i + 1] = word [i];
 			}
 			tB [0] = word [13];
-			tB = parity ();
-			return tB;
+			return new sWord(tB);
 		}
 		/// <summary>
 		/// Shift right the binary array
 		/// </summary>
 		/// <returns>return shifted word, leave sWord intact</returns>
-		public byte[] SHR ()
+		public sWord SHR ()
 		{
 			byte[] tB = new byte[16];
 			for (int i = 14; i >= 1; i--) {
 				tB [i - 1] = word [i];
 			}
 			tB [14] = word [14];
-			tB = parity ();
-			return tB;
+			return new sWord(tB);
 		}
 		/// <summary>
 		/// Shift Left the binary array
 		/// </summary>
 		/// <returns>return shifted word, leave sWord itnact</returns>
-		public byte[] SHL ()
+		public sWord SHL ()
 		{
 			byte[] tB = new byte[16];
 			for (int i = 0; i < 14; i++) {
 				tB [i + 1] = word [i];
 			}
 			tB [0] = 0;
-			tB = parity ();
-			return tB;
+			return new sWord(tB);
 		}
 		/// <summary>
 		/// One's complement of the binary array
 		/// </summary>
 		/// <returns>return complemented word, leave sWord intact</returns>
-		public byte[] CPL ()
+		public sWord CPL ()
 		{
 			byte[] tB = new byte[16];
 			for (int i = 0; i < 15; i++) {
@@ -246,8 +271,7 @@ namespace AGC_SUPPORT
 					tB [i] = 0;
 				}
 			}
-			tB = parity ();
-			return tB;
+			return new sWord(tB);
 		}
 		/// <summary>
 		/// Cycle Right the binary array : Shift right 15-2, bit 1 -> 15
@@ -260,14 +284,14 @@ namespace AGC_SUPPORT
 				tB [i - 1] = word [i];
 			}
 			tB [14] = word [0];
-			tB = parity ();
+			tB = calcParity ();
 			return tB;
 		}
 		/// <summary>
 		/// calculate the parity bit, so the number of 1 is odd.
 		/// </summary>
 		/// <returns>byte array with the computed parity bit</returns>
-		private byte[] parity ()
+		private byte[] calcParity ()
 		{
 			int oneB = 0;
 			for (int i = 0; i < 15; i++) {
@@ -300,6 +324,14 @@ namespace AGC_SUPPORT
 				return false;
 			}
 		}
+        public int DABS()
+        {
+            int retVal = Math.Abs(getInt());
+            if (retVal == 0)
+            { return 0; }
+            else
+            { return retVal - 1; }
+        }
 
         //geters
 		/// <summary>
@@ -316,7 +348,7 @@ namespace AGC_SUPPORT
 		/// <returns>true : don't check the parity</returns>
 		public bool getPar ()
 		{
-			return no_parity;
+			return parity;
 		}
 		/// <summary>
 		/// get the binary array
@@ -382,6 +414,16 @@ namespace AGC_SUPPORT
             }
             return ret;
         }
+        public int getInt()
+        {
+            if (isNegative)
+            {
+                sWord tS = new sWord(hex);
+                tS = tS.CPL();
+                return -(int)tS.getHex();
+            }
+            else { return (int)hex; }
+        }
 
         //seters
 		/// <summary>
@@ -391,7 +433,9 @@ namespace AGC_SUPPORT
 		public void setHex (ushort iHex)
 		{
 			hex = iHex;
-			hexToByte ();
+			word = hexToByte ();
+            setPar(parity);
+            negativeState();
 		}
 		/// <summary>
 		/// set the binary array
@@ -401,6 +445,8 @@ namespace AGC_SUPPORT
 		{
 			word = iw;
 			byteToHex ();
+            negativeState();
+            setPar(parity);
 		}
 		/// <summary>
 		/// set wether the parity bit should be set or not
@@ -410,11 +456,13 @@ namespace AGC_SUPPORT
 		/// <param name="np">true : don't check parity</param>
 		public void setPar (bool np)
 		{
-			no_parity = np;
-			if (!np) {
-				parity ();
+			parity = np;
+			if (np) {
+				calcParity ();
+                hex = byteToHex();
 			} else {
 				word [15] = 0;
+                hex = byteToHex();
 			}
 		}
 	}
@@ -512,7 +560,7 @@ namespace AGC_SUPPORT
 		/// <returns>the sWord at the given offset</returns>
 		public sWord get_sword (ushort offset_index)
 		{
-			return new sWord (MEM_ARRAY [offset_index], true);
+			return new sWord (MEM_ARRAY [offset_index]);
 		}
         public ushort get_word(ushort offset_index)
         {
@@ -591,7 +639,7 @@ namespace AGC_SUPPORT
 				int j = 0;
 				for (int i = 0; i < size; i++) {
 					fs.Seek (b_adress + j, SeekOrigin.Begin);
-					temp = new sWord (MEM_ARRAY [i], true);
+					temp = new sWord (MEM_ARRAY [i]);
 					byte[] tmp = temp.getWord ();
 					Array.Reverse (tmp);
 					fs.Write (tmp, 0, 16);
@@ -607,7 +655,7 @@ namespace AGC_SUPPORT
             if (is_ErType)
             {
                 fs.Seek(b_adress + offset, SeekOrigin.Begin);
-                temp = new sWord(MEM_ARRAY[offset], true);
+                temp = new sWord(MEM_ARRAY[offset]);
                 byte[] tmp = temp.getWord();
                 Array.Reverse(tmp);
                 fs.Write(tmp, 0, 16);
@@ -877,6 +925,34 @@ namespace AGC_SUPPORT
                 Console.WriteLine("index {0} out of channel range", index);
                 return 0;
             }
+        }
+    }
+
+    [TestClass]
+    public class SUPPORT_TEST
+    {
+        sWord Test = new sWord();
+
+        [TestMethod]
+        public void TestNegative()
+        {
+            Test.setHex(0x4000);
+            int expected = -16383;
+
+            int result = Test.getInt();
+
+            Assert.AreEqual(expected, result);
+        }
+
+        [TestMethod]
+        public void DABS()
+        {
+            Test.setHex(0x4000);
+            int expected = 16382;
+
+            int result = Test.DABS();
+
+            Assert.AreEqual(expected, result);
         }
     }
 

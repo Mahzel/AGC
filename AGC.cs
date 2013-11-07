@@ -131,7 +131,7 @@ namespace nAGC
             tEr = wB.isErasable();
             tId = (ushort)wB.getId();
             tFEB = wB.getFEB();
-            sWord s = new sWord((ushort)adr, true);
+            sWord s = new sWord((ushort)adr);
             if (s.getVal(10, 11) == 0)
             {
                 if ((ushort)s.getVal(8, 9) == 0)
@@ -219,6 +219,7 @@ namespace nAGC
                 case 0:
                     if (fFixed)
                     { S = fFixed_switch(S); }
+                    TC(S);
                     Console.WriteLine("TC {0:X4}", S);
                     break;
                 case 1:
@@ -328,6 +329,10 @@ namespace nAGC
         {
             RegBank.set_word(0, 0);
             AD(adress);
+        }
+        public void TC(int adress)
+        {
+            RegBank.set_word(5, (ushort)(adress)); //Z will be incremented to correct instruction whith the MCT refresh cycle
         }
 
         //Miscallaneous operations

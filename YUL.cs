@@ -314,7 +314,7 @@ namespace nYUL
         /// </summary>
         /// <param name="item">the current line</param>
         /// <returns>error index</returns>
-        private int ResolveOperand(string item)
+        private int ResolveOperand(String item)
         {
             ushort adress = 0;
             try
@@ -347,6 +347,16 @@ namespace nYUL
                 else if (fixedValue.registers.TryGetValue(item, out val))
                 {
                     adress = (ushort)val;
+                }
+                else if(item.Contains("+"))
+                {
+                    String[] jump = item.Split('+');
+                    adress = (ushort)(bank_index + Int16.Parse(jump[1], System.Globalization.NumberStyles.Integer));
+                }
+                else if (item.Contains("-"))
+                {
+                    String[] jump = item.Split('-');
+                    adress = (ushort)(bank_index + Int16.Parse(jump[1], System.Globalization.NumberStyles.Integer));
                 }
                 else
                 {
@@ -455,14 +465,14 @@ namespace nYUL
             sWord adr = null;
             try
             {
-                adr = new sWord((ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber), true);
+                adr = new sWord((ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber));
             }
             catch
             {
                 int val = 0;
                 if (labels.TryGetValue(item[2], out val))
                 {
-                    adr = new sWord((ushort)val, true);
+                    adr = new sWord((ushort)val);
                 }
                 else
                 {
@@ -595,7 +605,8 @@ namespace nYUL
             FileStream fs = File.Create("Labels_" + filename);
             fs.Close();
             fs.Dispose();
-            StreamWriter sw = new StreamWriter("Labels_" + AGC_Code_File, true);
+            StreamWriter sw = new StreamWriter("Labels_" + filename, true);
+            Console.WriteLine("Writing file : Labels_" + filename);
             string output;
             sw.Write("=============================\nLabels list & adress : \n=============================\n");
             foreach (KeyValuePair<string, int> kvp in labels)

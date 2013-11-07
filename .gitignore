@@ -51,6 +51,8 @@ build/
 [Oo]bj/
 Help
 Properties/
+*.csproj
+*.config
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
