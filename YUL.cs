@@ -213,7 +213,6 @@ namespace nYUL
                 try
                 {
                     error = preProcessorOp(items, false);
-                    bank_index++;
                 }
                 catch
                 {
@@ -260,6 +259,7 @@ namespace nYUL
                 case "2FCADR":
                     unresolvedLabelError = toFCADR(items, false);
                     return 0;
+                default: break;
             }
             bank_index += 1;
             return 0;
@@ -415,14 +415,6 @@ namespace nYUL
                     return prepareBankSwitch(items);
                 case "=":
                     return assignValue(items, mode);
-                case "DEC":
-                    if (mode) { Bank.set_word((ushort)bank_index, (ushort)Int32.Parse(items[2])); }
-                    bank_index++;
-                        return 0;
-                case "OCT":
-                    if (mode) { Bank.set_word((ushort)bank_index, sWord.OctToDec((ushort)Int32.Parse(items[2]))); }
-                    bank_index++;
-                    return 0;
                 case "2FCADR":
                     unresolvedFCAdrCount = toFCADR(items, mode);
                     return 0;

@@ -50,7 +50,7 @@ namespace AGC_SUPPORT
 		/// <summary>
 		/// decimal value
 		/// </summary>
-		private ushort dec;
+		private ushort hex;
 		/// <summary>
 		/// binary (byte[16] array) value
 		/// </summary>
@@ -75,20 +75,20 @@ namespace AGC_SUPPORT
 		/// </summary>
 		public sWord ()
 		{
-			dec = 0x0000;
+			hex = 0x0000;
 			parity = false;
-			word = decToByte ();
+			word = hexToByte ();
 			buildStr ();
 		}
 		/// <summary>
-		/// Constructor for dec value only, parity is checked by default
+		/// Constructor for hex value only, parity is checked by default
 		/// </summary>
-		/// <param name="idec">16b decimal word</param>
-		public sWord (ushort idec)
+		/// <param name="ihex">16b decimal word</param>
+		public sWord (ushort ihex)
 		{
-			dec = idec;
+			hex = ihex;
 			parity = false;
-            word = decToByte();
+            word = hexToByte();
             negativeState();
             setPar(false);
 		}
@@ -101,24 +101,24 @@ namespace AGC_SUPPORT
 			word = iWord;
 			parity = false;
             setPar(false);
-			dec = byteToHex ();
+			hex = byteToHex ();
             negativeState();
 		}
 		/// <summary>
-		/// Constructor for dec word, with parity bit calculation option
+		/// Constructor for hex word, with parity bit calculation option
 		/// </summary>
-		/// <param name="ihex">dec word</param>
+		/// <param name="ihex">hex word</param>
 		/// <param name="argParity">FALSE = parity bit enabled</param>
 		public sWord (ushort ihex, bool argParity)
 		{
-			dec = ihex;
+			hex = ihex;
 			parity = argParity;
-            word = decToByte();
+            word = hexToByte();
             if (argParity)
             {
                 word = calcParity();
             }
-            dec = byteToHex(); 
+            hex = byteToHex(); 
             negativeState();
 		}
 		/// <summary>
@@ -134,40 +134,40 @@ namespace AGC_SUPPORT
             {
                 word = calcParity();
             }
-			dec = byteToHex ();		
+			hex = byteToHex ();		
             negativeState();
 		}
 
         //Conversion functions
 		/// <summary>
-		/// convert byte array to dec value (dec ushort)
+		/// convert byte array to hex value (dec ushort)
 		/// </summary>
 		/// <returns>return the decimal (ushort) value of the byte array.</returns>
 		public ushort byteToHex ()
 		{
-			dec = 0;
+			hex = 0;
 			for (int i = 0; i < 16; i++) {
-				dec += (ushort)(word [i] * Math.Pow (2, i));           
+				hex += (ushort)(word [i] * Math.Pow (2, i));           
 			}
-			return dec;
+			return hex;
 		}
 		/// <summary>
-		/// convert dec value to byte array
+		/// convert hex value to byte array
 		/// </summary>
-		/// <returns>return the byte array of the dec value.</returns>
-		public byte[] decToByte ()
+		/// <returns>return the byte array of the hex value.</returns>
+		public byte[] hexToByte ()
 		{
 			int i = 0;
-			int tDec = dec;
+			int tHex = hex;
 			byte[] tB = new byte[16];
-			if (tDec != 0) {
-				while (tDec != 0) {         
-					if (tDec % 2 == 0) {
+			if (tHex != 0) {
+				while (tHex != 0) {         
+					if (tHex % 2 == 0) {
 						tB [i] = 0;
-						tDec = (ushort)(tDec / 2);
+						tHex = (ushort)(tHex / 2);
 					} else {
 						tB [i] = 1;
-						tDec = (ushort)(tDec / 2);
+						tHex = (ushort)(tHex / 2);
 					}
 					i++;
 				}
@@ -197,7 +197,7 @@ namespace AGC_SUPPORT
             Array.Reverse(ta);
             binS = new String(ta);
             binS = String.Format("0b{0}", binS);
-            hexS = String.Format("0x{0:X4}", dec);
+            hexS = String.Format("0x{0:X4}", hex);
         }
         private void negativeState()
         {
@@ -340,7 +340,7 @@ namespace AGC_SUPPORT
 		/// <returns>return (ushort)decimal value</returns>
 		public ushort getHex ()
 		{
-			return dec;
+			return hex;
 		}
 		/// <summary>
 		/// get wether the parity bit should be set or not
@@ -418,22 +418,22 @@ namespace AGC_SUPPORT
         {
             if (isNegative)
             {
-                sWord tS = new sWord(dec);
+                sWord tS = new sWord(hex);
                 tS = tS.CPL();
                 return -(int)tS.getHex();
             }
-            else { return (int)dec; }
+            else { return (int)hex; }
         }
 
         //seters
 		/// <summary>
 		/// set Hex (ushort) value
 		/// </summary>
-		/// <param name="iHex">dec value to set (ushort)</param>
-		public void setDec (ushort iHex)
+		/// <param name="iHex">hex value to set (ushort)</param>
+		public void setHex (ushort iHex)
 		{
-			dec = iHex;
-			word = decToByte ();
+			hex = iHex;
+			word = hexToByte ();
             setPar(parity);
             negativeState();
 		}
@@ -444,7 +444,7 @@ namespace AGC_SUPPORT
 		public void setWord (byte[] iw)
 		{
 			word = iw;
-			byteToHex ();
+			hex = byteToHex ();
             negativeState();
             setPar(parity);
 		}
@@ -459,32 +459,12 @@ namespace AGC_SUPPORT
 			parity = np;
 			if (np) {
 				calcParity ();
-                dec = byteToHex();
+                hex = byteToHex();
 			} else {
 				word [15] = 0;
-                dec = byteToHex();
+                hex = byteToHex();
 			}
 		}
-        public static ushort OctToDec (ushort iOct)
-        {
-            int tOct = iOct;
-            int digits = 0;
-            ushort result = 0;
-            while(tOct > 0)
-            {
-                tOct = tOct / 10;
-                digits++;
-            }
-            digits--;
-            for(int i = digits; i>=0; i--)
-            {
-                int pow = (int)Math.Pow(8, i);
-                tOct = iOct / (int)Math.Pow(10, i);
-                result += (ushort)(tOct * pow);
-                iOct -= (ushort)((iOct / (int)Math.Pow(10, i))*(int)Math.Pow(10, i));
-            }
-            return result;
-        }
 	}
 
 	/// <summary>
@@ -624,7 +604,7 @@ namespace AGC_SUPPORT
 		/// Set the word at the given offset (in MEMORY ARRAY.), inserting the decimal value
 		/// </summary>
 		/// <param name="offset_index">offset is the memory adress in the bank</param>
-		/// <param name="dec">the word value to write in the bank</param>
+		/// <param name="hex">the word value to write in the bank</param>
 		/// <returns>0 : writed / 1 : bank is read only</returns>
 		public int set_word (ushort offset_index, ushort hex)
 		{
@@ -877,6 +857,7 @@ namespace AGC_SUPPORT
         public delegate void dChannel(int channel);
         public dChannel AGCList;
         public dChannel DSKYList;
+        public dChannel other;
 
         public Channels()
         {
@@ -902,6 +883,11 @@ namespace AGC_SUPPORT
                     AGCList(chan);
                 }
             }
+            if (other != null)
+            {
+                other(chan);
+            }
+
         }
 
         public void regDelegate(object sender, dChannel obs)
@@ -922,6 +908,15 @@ namespace AGC_SUPPORT
                 else
                 {
                     DSKYList += obs;
+                }
+            }
+            else
+            {
+                if (other == null)
+                { other = new dChannel(obs); }
+                else
+                {
+                    other += obs;
                 }
             }
         }
@@ -956,7 +951,7 @@ namespace AGC_SUPPORT
         [TestMethod]
         public void TestNegative()
         {
-            Test.setDec(0x4000);
+            Test.setHex(0x4000);
             int expected = -16383;
 
             int result = Test.getInt();
@@ -967,21 +962,10 @@ namespace AGC_SUPPORT
         [TestMethod]
         public void DABS()
         {
-            Test.setDec(0x4000);
+            Test.setHex(0x4000);
             int expected = 16382;
 
             int result = Test.DABS();
-
-            Assert.AreEqual(expected, result);
-        }
-
-        [TestMethod]
-        public void testOct()
-        {
-            Test.setDec(0);
-            ushort expected = 4320;
-
-            ushort result = sWord.OctToDec(10340);
 
             Assert.AreEqual(expected, result);
         }

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AGC_SUPPORT;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.IO;
 
 namespace nAGC
 {
@@ -39,6 +40,7 @@ namespace nAGC
         bool tEr;
         ushort tId;
         int tFEB;
+        bool debug = false;
 
         /// <summary>
         /// AGC builder placeholder
@@ -58,39 +60,66 @@ namespace nAGC
             wB = new BANK(true, 0, 0, AGC_File); //load a default EB 0
             fFixed = false;
         }
+
+        public void setDebug(bool deb)
+        {
+            this.debug = deb;
+        }
         
         //Run functions
         /// <summary>
         /// start (run) a previous AGC intialized (powered up)
         /// </summary>
-        public void start()
+        public void start(bool step)
         {
             if (!running) {
                 clock.c_start ();
                 running = true;
                 Console.WriteLine ("AGC Started");
-                e_mem = build_adress_reg (PB.get_sword (RegBank.get_word (5)));
-                RegBank.set_word (11, PB.get_sword (RegBank.get_word (5)).getVal (12, 15)); //set SQ reg to opcode value
-                QC = PB.get_sword (RegBank.get_word (5)).getVal (10, 11);
-                RegBank.set_word (5, (ushort)(RegBank.get_word (5) + 1));
+                e_mem = build_adress_reg (PB.get_sword (0));
+                RegBank.set_word (11, PB.get_sword (0).getVal (12, 15)); //set SQ reg to opcode value
+                QC = PB.get_sword (0).getVal (10, 11);
+                RegBank.set_word (5, (ushort)(1));
                 RegBank.write_bank ();
-                MCT ();
+                MainCycle(step);
             } else {
-                Console.WriteLine ("AGC Halted.");
+                if (debug) { chan.set_chan(this, 6, 1); }
             }
            
         }
-        private void MCT()
+
+        public bool isRunning()
+        { return running; }
+
+        private void MainCycle(bool step)
         {
-            while (running)
+            if (!step)
             {
+                while (running)
+                {
+                    MCT();
+                }
+                if (debug) { chan.set_chan(this, 6, 1); }
+                Console.WriteLine("AGC halted");
+            }
+            else
+            {
+            }
+        }
+        public void MCT()
+        {
                 int cycle_count = 0;
                 clock.c_start();
                 exec_opc(false);
-                if((RegBank.get_word(3) != wB.getId()) && wB.isErasable())
-                { switch_bank(true);}
-                if((RegBank.get_word(4) != wB.getId()) && !wB.isErasable())
-                { switch_bank(false);}
+                if(running == false)
+                {
+                    chan.set_chan(this, 6, 1);
+                    return;
+                }
+                if ((RegBank.get_word(3) != wB.getId()) && wB.isErasable())
+                { switch_bank(true); }
+                if ((RegBank.get_word(4) != wB.getId()) && !wB.isErasable())
+                { switch_bank(false); }
                 e_mem = build_adress_reg(PB.get_sword(RegBank.get_word(5)));
                 RegBank.set_word(11, PB.get_sword(RegBank.get_word(5)).getVal(12, 15)); //set SQ reg to opcode value
                 QC = PB.get_sword(RegBank.get_word(5)).getVal(10, 11);
@@ -100,8 +129,22 @@ namespace nAGC
                 {
                     cycle_count += clock.get_cycle();
                 }
-            }
+                if (debug)
+                {
+                    chan.set_chan(this, 0, RegBank.get_word(0));
+                    chan.set_chan(this, 1, RegBank.get_word(1));
+                    chan.set_chan(this, 2, RegBank.get_word(2));
+                    chan.set_chan(this, 3, RegBank.get_word(3));
+                    chan.set_chan(this, 4, RegBank.get_word(4));
+                    chan.set_chan(this, 5, RegBank.get_word(5));
+                }
+        }
+
+        public void Halt()
+        {
+            running = false;
             Console.WriteLine("AGC halted");
+            if (debug) { chan.set_chan(this, 6, 1); }
         }
         
         //Bank management
@@ -309,12 +352,54 @@ namespace nAGC
             RegBank.set_word(0, (ushort)(val_adr + RegBank.get_word(0)));
             RegBank.write_word(0);
         }
+        public void ADS(int adress)
+        {
+            ushort val_adr = 0;
+            val_adr = wB.get_word((ushort)adress);    
+            RegBank.set_word(0, (ushort)(val_adr + RegBank.get_word(0)));
+            RegBank.write_word(0);
+            RegBank.set_word((ushort)adress, (ushort)RegBank.get_word(0));
+            RegBank.write_word((ushort)adress);
+        }
+        public void DAS(int adress)
+        {
+            ushort val_adr1 = wB.get_word((ushort)adress);
+            ushort val_adr2 = wB.get_word((ushort)(adress+1));   
+            RegBank.set_word(0, (ushort)(val_adr1 + RegBank.get_word(0)));
+            RegBank.set_word(1, (ushort)(val_adr2+ RegBank.get_word(1)));
+            RegBank.write_word(0);
+            RegBank.write_word(1);
+            RegBank.set_word((ushort)adress, (ushort)RegBank.get_word(0));
+            RegBank.set_word((ushort)(adress + 1), (ushort)RegBank.get_word(1));
+            RegBank.write_word((ushort)adress);
+            RegBank.write_word((ushort)(adress + 1));
+        }
+        public void SU(int adress)
+        {
+            ushort val_adr = 0;
+            val_adr = wB.get_word((ushort)adress);    
+            RegBank.set_word(0, (ushort)(val_adr - RegBank.get_word(0)));
+            RegBank.write_word(0);
+        }
         public void TS(int adress)
         {
             if (e_mem)
             {
                 wB.set_word((ushort)adress, RegBank.get_word(0));
                 wB.write_word((ushort)adress);
+            }
+        }
+        public void CCS(int adress)
+        {
+            CA(adress);
+            if(wB.get_word((ushort)adress)>0)
+            {}
+            else if(wB.get_word((ushort)adress)==0)
+            {}
+            else if(wB.get_word((ushort)adress)>16384)
+            {sWord wd = new sWord(wB.get_word((ushort)(adress)));
+                RegBank.set_word(0,1);}
+            else{RegBank.set_word(0,0);
             }
         }
         public void INCR(int adress)
@@ -333,6 +418,28 @@ namespace nAGC
         public void TC(int adress)
         {
             RegBank.set_word(5, (ushort)(adress)); //Z will be incremented to correct instruction whith the MCT refresh cycle
+        }
+        public void AUG(int adress)
+        {
+            if(e_mem)
+            {
+                ushort wd = wB.get_word((ushort)adress);
+                if(wd>=0)
+                { wd += 1; }
+                else { wd -= 1; }
+                wB.set_word((ushort)adress, wd);
+                wB.write_word((ushort)adress);
+            }
+        }
+        public void DIM(int adress)
+        {
+            if(e_mem)
+            { ushort wd = wB.get_word((ushort)adress);
+                if(wd<=0)
+                { wd += 1; }
+                else { wd -= 1; }
+                wB.set_word((ushort)adress, wd);
+                wB.write_word((ushort)adress);
         }
 
         //Miscallaneous operations
