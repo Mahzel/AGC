@@ -433,13 +433,15 @@ namespace nAGC
         }
         public void DIM(int adress)
         {
-            if(e_mem)
-            { ushort wd = wB.get_word((ushort)adress);
-                if(wd<=0)
+            if (e_mem)
+            {
+                ushort wd = wB.get_word((ushort)adress);
+                if (wd <= 0)
                 { wd += 1; }
                 else { wd -= 1; }
                 wB.set_word((ushort)adress, wd);
                 wB.write_word((ushort)adress);
+            }
         }
 
         //Miscallaneous operations
