@@ -838,7 +838,6 @@ namespace AGC_SUPPORT
 			IACode.Add ("ZQ", 9223);
 			IACode.Add ("DCOM", 16385);
 			IACode.Add ("SQUARE", 28672);
-			IACode.Add ("NOOP", 7);
 			IACode.Add ("RESUME", 20495);
 			IOCode.Add ("READ", 0);
 			IOCode.Add ("WRITE", 1);

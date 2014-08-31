@@ -266,25 +266,49 @@ namespace nAGC
         private void stOpcode(sWord S)
         {
             int val = 0;
+            if (fFixed)
+            { val = fFixed_switch(S.getInt()); }
+            else { val = S.getInt(); }
             switch (RegBank.get_word(11))
             {
                 case 0:
-                    if (fFixed)
-                    { val = fFixed_switch(S.getInt()); }
-                    else { val = S.getInt(); }
-                    if (val != 6)
-                    { TC(val+index);
-                    Console.WriteLine("TC {0:X4}", val);
+                    if (val > 6)
+                    {
+                        TC(val + index);
+                        Console.WriteLine("TC {0:X4}", val + index);
                     }
-                    else { extra = true;
-                    Console.WriteLine("EXTEND");
+                    else
+                    {
+                        switch (val)
+                        {
+                            case 0:
+                                Console.WriteLine("XXALQ");
+                                break;
+                            case 1:
+                                Console.WriteLine("XLQ");
+                                break;
+                            case 2:
+                                Console.WriteLine("RETURN");
+                                break;
+                            case 3:
+                                Console.WriteLine("RELINT");
+                                break;
+                            case 4:
+                                Console.WriteLine("INHINT");
+                                break;
+                            case 5:
+                                TC(val + index);
+                                Console.WriteLine("TC {0:X4}", val + index);
+                                break;
+                            case 6:
+                                extra = true;
+                                Console.WriteLine("EXTEND");
+                                break;
+                        }
                     }
                     index = 0;
                     break;
                 case 1:
-                    if (fFixed)
-                    { val = fFixed_switch(S.getInt()); }
-                    else { val = S.getInt(); }
                     if (QC == 0)
                     {
                         Console.WriteLine("CCS {0:X4}", val+index);
@@ -298,15 +322,22 @@ namespace nAGC
                         break;
                     }
                 case 2:
-                    if (fFixed)
-                    { val = fFixed_switch(S.getInt() - (QC * 1024)); }
-                    else { val = S.getInt(); }
                     switch (QC)
                     {
                         case 0:
-                            Console.WriteLine("DAS {0:X4}", val + index);
-                            break;
+                            if (val == 0)
+                            {
+                                Console.WriteLine("DDOUBL");
+                                break;
+                            }
+                                Console.WriteLine("DAS {0:X4}", val + index);
+                                break;
                         case 1:
+                            if(val==6)
+                            {
+                                Console.WriteLine("ZL");
+                                break;
+                            }
                             Console.WriteLine("LXCH {0:X4}", val + index);
                             break;
                         case 2:
@@ -320,35 +351,59 @@ namespace nAGC
                     index = 0;
                     break;
                 case 3:
-                    if (fFixed)
-                    { val = fFixed_switch(S.getInt()); }
-                    else { val = S.getInt(); }
                     Console.WriteLine("CA {0:X4}", val + index);
                     CA(val + index);
                     index = 0;
                     break;
                 case 4:
-                    if (fFixed)
-                    { val = fFixed_switch(S.getInt()); }
-                    else { val = S.getInt(); }
+                    if(val==0)
+                    {
+                        Console.WriteLine("COM");
+                        break;
+                    }
                     Console.WriteLine("CS {0:X4}", val + index);
                     index = 0;
                     break;
                 case 5:
-                    if (fFixed)
-                    { val = fFixed_switch(S.getInt() - (QC * 1024)); }
-                    else { val = S.getInt(); }
                     switch (QC)
                     {
                         case 0:
+                            if(val==17)
+                            {
+                                Console.WriteLine("RESUME");
+                            }
                             Console.WriteLine("INDEX {0:X4}", val + index);
                             index = wB.get_word((ushort)(val + index));
                             break;
                         case 1:
-                            Console.WriteLine("DXCH {0:X4}", val + index);
+                            switch(val)
+                            {
+                                case 4:
+                                    Console.WriteLine("DTCF");
+                                    break;
+                                case 5:
+                                    Console.WriteLine("DTCB");
+                                    break;
+                                default:
+                                    Console.WriteLine("DXCH {0:X4}", val + index);
+                                    break;
+                            }
                             index = 0;
                             break;
                         case 2:
+                            switch (val)
+                            {
+                                case 4:
+                                    Console.WriteLine("OVSK");
+                                    break;
+                                case 5:
+                                    Console.WriteLine("TCAA");
+                                    break;
+                                default:
+                                   Console.WriteLine("TS {0:X4}", val + index);
+                                    TS(val+index);
+                                    break;
+                            }
                             Console.WriteLine("TS {0:X4}", val + index);
                             TS(val+index);
                             index = 0;
@@ -360,11 +415,15 @@ namespace nAGC
                     }
                     break;
                 case 6:
-                    if (fFixed)
-                    { val = fFixed_switch(S.getInt()); }
-                    else { val = S.getInt(); }
-                    Console.WriteLine("AD {0:X4}", val + index);
-                    AD(val + index);
+                    if (val != 0)
+                    {
+                        Console.WriteLine("AD {0:X4}", val + index);
+                        AD(val + index);
+                    }
+                    else
+                    {
+                        Console.WriteLine("DOUBLE");
+                    }
                     index = 0;
                     break;
                 case 7:
@@ -381,6 +440,9 @@ namespace nAGC
         private void extraCodes(sWord S)
         {
             int val = 0;
+            if (fFixed)
+            { val = fFixed_switch(S.getInt()); }
+            else { val = S.getInt(); }
             switch (RegBank.get_word(11))
             {
                 case 0:
@@ -388,47 +450,86 @@ namespace nAGC
                     switch(PC)
                     {
                         case 0:
-                            Console.WriteLine("READ {0:X4}", val);
+                            Console.WriteLine("READ {0:X4}", val+index);
                             break;
                         case 1:
-                            Console.WriteLine("WRITE {0:X4}", val);
+                            Console.WriteLine("WRITE {0:X4}", val+index);
                             write_chan(val, RegBank.get_word(0));
                             break;
                         case 2:
-                            Console.WriteLine("RAND {0:X4}", val);
+                            Console.WriteLine("RAND {0:X4}", val+index);
                             break;
                         case 3:
-                            Console.WriteLine("WAND {0:X4}", val);
+                            Console.WriteLine("WAND {0:X4}", val+index);
                             break;
                         case 4:
-                            Console.WriteLine("ROR {0:X4}", val);
+                            Console.WriteLine("ROR {0:X4}", val+index);
                             break;
                         case 5:
-                            Console.WriteLine("WOR {0:X4}", val);
+                            Console.WriteLine("WOR {0:X4}", val+index);
                             break;
                         case 6:
-                            Console.WriteLine("RXOR {0:X4}", val);
+                            Console.WriteLine("RXOR {0:X4}", val+index);
                             break;
                         case 7:
-                            Console.WriteLine("WXOR {0:X4}", val);
+                            Console.WriteLine("WXOR {0:X4}", val+index);
                             break;
                     }
                     index = 0;
                     extra = false;
                     break;
                 case 1:
+                    if(QC==0)
+                    {
+                        Console.WriteLine("DV {0:X4}", val + index);
+                    }
+                    else
+                    {
+                        Console.WriteLine("BZF {0:X4}", val + index);
+                    }
                     index = 0;
                     extra = false;
                     break;
                 case 2:
+                    switch(QC)
+                    {
+                        case 1:
+                            Console.WriteLine("MSU {0:X4}", val + index);
+                            break;
+                        case 2:
+                            if (val == 7)
+                            {
+                                Console.WriteLine("ZQ");
+                            }
+                            else
+                            {
+                                Console.WriteLine("QXCH {0:X4}", val + index);
+                            }
+                            break;
+                        case 3:
+                            Console.WriteLine("AUG {0:X4}", val + index);
+                            break;
+                        case 4:
+                            Console.WriteLine("DIM {0:X4}", val + index);
+                            break;
+                    }
                     index = 0;
                     extra = false;
                     break;
                 case 3:
+                    if (val == 0)
+                    {
+                        Console.WriteLine("DCOM");
+                    }
+                    else
+                    {
+                        Console.WriteLine("DCA {0:X4}", val + index);
+                    }
                     index = 0;
                     extra = false;
                     break;
                 case 4:
+                    Console.WriteLine("DCS {0:X4}", val + index);
                     index = 0;
                     extra = false;
                     break;
@@ -438,10 +539,21 @@ namespace nAGC
                     extra = true;
                     break;
                 case 6:
+                    if(QC==0)
+                    { Console.WriteLine("SU {0:X4}", val + index); }
+                    else { Console.WriteLine("BZMF {0:X4}", val + index); }
                     index = 0;
                     extra = false;
                     break;
                 case 7:
+                    if (val == 0)
+                    {
+                        Console.WriteLine("SQUARE");
+                    }
+                    else
+                    {
+                        Console.WriteLine("MP {0:X4}", val + index);
+                    }
                     index = 0;
                     extra = false;
                     break;
