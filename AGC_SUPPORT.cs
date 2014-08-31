@@ -841,13 +841,13 @@ namespace AGC_SUPPORT
 			IACode.Add ("NOOP", 7);
 			IACode.Add ("RESUME", 20495);
 			IOCode.Add ("READ", 0);
-			IOCode.Add ("WRITE", 0);
-			IOCode.Add ("RAND", 0);
-			IOCode.Add ("WAND", 0);
-			IOCode.Add ("ROR", 0);
-			IOCode.Add ("WOR", 0);
-			IOCode.Add ("RXOR", 0);
-			IOCode.Add ("WXOR", 0);
+			IOCode.Add ("WRITE", 1);
+			IOCode.Add ("RAND", 2);
+			IOCode.Add ("WAND", 3);
+			IOCode.Add ("ROR", 4);
+			IOCode.Add ("WOR", 5);
+			IOCode.Add ("RXOR", 6);
+			IOCode.Add ("WXOR", 7);
 		}
 	}
 

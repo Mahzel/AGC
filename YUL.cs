@@ -21,7 +21,7 @@ namespace nYUL
         String AGC_Code_File;
         String AGC_Bit_File;
         BANK Bank;
-        const int max_pass = 5;
+        const int max_pass = 10;
         int bank_index = 0;
         int[] bank_index_counter;
         Dictionary<String, int> labels = new Dictionary<String, int>();
@@ -75,7 +75,7 @@ namespace nYUL
         //Run function
         /// <summary>
         /// The compilation routine process lines in mode 0 (resolve labels) then in mode 1 (resolve opcodes) and create the summary output file.
-        /// A maximum of 5 passes is granted to process labels.
+        /// A maximum of 10 passes is granted to process labels. This means you can have up to 10 labels EQUALS chain at maximum.
         /// </summary>
         /// <returns>Error index</returns>
         public int compile()
@@ -308,6 +308,10 @@ namespace nYUL
             {
                 opcode *= 1024;
             }
+            else if (fixedValue.IOCode.TryGetValue(items[1], out opcode))
+            {
+                opcode *= 512;
+            }
             else if (fixedValue.IACode.TryGetValue(items[1], out opcode))
             {
                 if (opcode == 7)
@@ -424,7 +428,7 @@ namespace nYUL
                         fixedValue.quarter.TryGetValue(items[1], out val) ||
                         fixedValue.extraq.TryGetValue(items[1], out val) ||
                         fixedValue.IACode.TryGetValue(items[1], out val) ||
-                        fixedValue.IACode.TryGetValue(items[1], out val) ||
+                        fixedValue.IOCode.TryGetValue(items[1], out val) ||
                         fixedValue.extrac.TryGetValue(items[1], out val))
                     { return 0; }
                     return -1;

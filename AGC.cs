@@ -40,7 +40,9 @@ namespace nAGC
         bool tEr;
         ushort tId;
         int tFEB;
+        bool extra = false;
         bool debug = false;
+        int PC=0; //Peripheral Code of IO channels.
 
         /// <summary>
         /// AGC builder placeholder
@@ -110,7 +112,7 @@ namespace nAGC
         {
                 int cycle_count = 0;
                 clock.c_start();
-                exec_opc(false);
+                exec_opc();
                 if(running == false)
                 {
                     chan.set_chan(this, 6, 1);
@@ -121,7 +123,7 @@ namespace nAGC
                 if ((RegBank.get_word(4) != wB.getId()) && !wB.isErasable())
                 { switch_bank(false); }
                 e_mem = build_adress_reg(PB.get_sword(RegBank.get_word(5)));
-                RegBank.set_word(11, PB.get_sword(RegBank.get_word(5)).getVal(12, 15)); //set SQ reg to opcode value
+                RegBank.set_word(11, PB.get_sword(RegBank.get_word(5)).getVal(12, 14)); //set SQ reg to opcode value
                 QC = PB.get_sword(RegBank.get_word(5)).getVal(10, 11);
                 RegBank.set_word(5, (ushort)(RegBank.get_word(5) + 1)); //Increment Z to next instruction
                 RegBank.write_bank();
@@ -208,7 +210,14 @@ namespace nAGC
             ushort S = 0;
 
             bool erasable = false;
-            if (adress.getVal(11,11) == 0 && adress.getVal(10, 10) == 0)
+            if (extra && adress.getVal(12, 14) == 0)//IO Code detection
+            {
+                S = adress.getVal(0, 8);
+                PC = adress.getVal(9, 11);
+                erasable = true;
+                fFixed = false;
+            }
+            else if (adress.getVal(11,11) == 0 && adress.getVal(10, 10) == 0)
             {
                 if ((adress.getVal(9, 9) != 1) | (adress.getVal(8,8) != 1))
                 {
@@ -224,9 +233,9 @@ namespace nAGC
             }
             else if (adress.getVal(11,11) == 1)
             {
-                S = adress.getVal(0, 11);
-                erasable = false;
-                fFixed = true;
+                    S = adress.getVal(0, 11);
+                    erasable = false;
+                    fFixed = true;
             }
             else
             {
@@ -243,103 +252,164 @@ namespace nAGC
         /// disassamble word, find opcode then call function
         /// </summary>
         /// <param name="extra">Extracode instruction</param>
-        public void exec_opc(Boolean extra)
-        {
-            int S = (int)RegBank.get_word(12);
-            
+        public void exec_opc()
+        {       
             if (!extra)
             {
-                stOpcode(S);
+                stOpcode(RegBank.get_sword(12));
             }
-            else { } //TODO : EXTRACODES
+            else { extraCodes(RegBank.get_sword(12)); }
             if(fFixed)
             { restore_fFixed(); }
         }
-        private void stOpcode(int S)
+        private void stOpcode(sWord S)
         {
+            int val = 0;
             switch (RegBank.get_word(11))
             {
                 case 0:
                     if (fFixed)
-                    { S = fFixed_switch(S); }
-                    TC(S);
-                    Console.WriteLine("TC {0:X4}", S);
+                    { val = fFixed_switch(S.getInt()); }
+                    TC(val);
+                    Console.WriteLine("TC {0:X4}", val);
                     break;
                 case 1:
                     if (fFixed)
-                    { S = fFixed_switch(S); }
+                    { val = fFixed_switch(S.getInt()); }
                     if (QC == 0)
                     {
-                        Console.WriteLine("CCS {0:X4}", S);
+                        Console.WriteLine("CCS {0:X4}", val);
                         break;
                     }
                     else
                     {
-                        Console.WriteLine("TCF {0:X4}", S);
+                        Console.WriteLine("TCF {0:X4}", val);
                         break;
                     }
                 case 2:
                     if (fFixed)
-                    { S = fFixed_switch(S - (QC * 1024)); }
+                    { val = fFixed_switch(S.getInt() - (QC * 1024)); }
                     switch (QC)
                     {
                         case 0:
-                            Console.WriteLine("DAS {0:X4}", S);
+                            Console.WriteLine("DAS {0:X4}", val);
                             break;
                         case 1:
-                            Console.WriteLine("LXCH {0:X4}", S);
+                            Console.WriteLine("LXCH {0:X4}", val);
                             break;
                         case 2:
-                            Console.WriteLine("INCR {0:X4}", S);
-                            INCR(S);
+                            Console.WriteLine("INCR {0:X4}", val);
+                            INCR(val);
                             break;
                         case 3:
-                            Console.WriteLine("ADS {0:X4}", S);
+                            Console.WriteLine("ADS {0:X4}", val);
                             break;
                     }
                     break;
                 case 3:
                     if (fFixed)
-                    { S = fFixed_switch(S); }
-                    Console.WriteLine("CA {0:X4}", S);
-                    CA(S);
+                    { val = fFixed_switch(S.getInt()); }
+                    Console.WriteLine("CA {0:X4}", val);
+                    CA(val);
                     break;
                 case 4:
                     if (fFixed)
-                    { S = fFixed_switch(S); }
-                    Console.WriteLine("CS {0:X4}", S);
+                    { val = fFixed_switch(S.getInt()); }
+                    Console.WriteLine("CS {0:X4}", val);
                     break;
                 case 5:
                     if (fFixed)
-                    { S = fFixed_switch(S - (QC * 1024)); }
+                    { val = fFixed_switch(S.getInt() - (QC * 1024)); }
                     switch (QC)
                     {
                         case 0:
-                            Console.WriteLine("INDEX {0:X4}", S);
+                            Console.WriteLine("INDEX {0:X4}", val);
+                            extra = true;
                             break;
                         case 1:
-                            Console.WriteLine("DXCH {0:X4}", S);
+                            Console.WriteLine("DXCH {0:X4}", val);
                             break;
                         case 2:
-                            Console.WriteLine("TS {0:X4}", S);
-                            TS(S);
+                            Console.WriteLine("TS {0:X4}", val);
+                            TS(val);
                             break;
                         case 3:
-                            Console.WriteLine("XCH {0:X4}", S);
+                            Console.WriteLine("XCH {0:X4}", val);
                             break;
                     }
                     break;
                 case 6:
                     if (fFixed)
-                    { S = fFixed_switch(S); }
+                    { val = fFixed_switch(S.getInt()); }
                     Console.WriteLine("AD {0:X4}", S);
-                    AD(S);
+                    AD(val);
                     break;
                 case 7:
                     if (fFixed)
-                    { S = fFixed_switch(S); }
-                    Console.WriteLine("MASK {0:X4}", S);
+                    { val = fFixed_switch(S.getInt()); }
+                    Console.WriteLine("MASK {0:X4}", val);
                     running = false;
+                    break;
+            }
+        }
+
+        private void extraCodes(sWord S)
+        {
+            int val = 0;
+            switch (RegBank.get_word(11))
+            {
+                case 0:
+                    val = S.getVal(0, 8);
+                    switch(PC)
+                    {
+                        case 0:
+                            Console.WriteLine("READ {0:X4}", val);
+                            break;
+                        case 1:
+                            Console.WriteLine("WRITE {0:X4}", val);
+                            write_chan(val, RegBank.get_word(0));
+                            break;
+                        case 2:
+                            Console.WriteLine("RAND {0:X4}", val);
+                            break;
+                        case 3:
+                            Console.WriteLine("WAND {0:X4}", val);
+                            break;
+                        case 4:
+                            Console.WriteLine("ROR {0:X4}", val);
+                            break;
+                        case 5:
+                            Console.WriteLine("WOR {0:X4}", val);
+                            break;
+                        case 6:
+                            Console.WriteLine("RXOR {0:X4}", val);
+                            break;
+                        case 7:
+                            Console.WriteLine("WXOR {0:X4}", val);
+                            break;
+                    }
+                    extra = false;
+                    break;
+                case 1:
+                    extra = false;
+                    break;
+                case 2:
+                    extra = false;
+                    break;
+                case 3:
+                    extra = false;
+                    break;
+                case 4:
+                    extra = false;
+                    break;
+                case 5:
+                    extra = false;
+                    break;
+                case 6:
+                    extra = false;
+                    break;
+                case 7:
+                    extra = false;
                     break;
             }
         }
