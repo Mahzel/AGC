@@ -29,7 +29,7 @@ namespace nDSKY
             }
         }
 
-        public void write_chan(int index, ushort value)
+        public void write_chan(int index, short value)
         {
             chan.set_chan(this, index, value);
         }

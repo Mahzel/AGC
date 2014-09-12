@@ -14,7 +14,7 @@ namespace nYUL
     /// </summary>
     public class YUL
     {
-        ushort FB, EB;
+        short FB, EB;
         int FEB;
         String[] Cp_File;
         FileStream AGC_Bit;
@@ -298,19 +298,24 @@ namespace nYUL
         /// <returns>error index</returns>
         private int resolve_opcode(String[] items)
         {
-            ushort opcode = 0;
-            ushort adress = 0;
+            short opcode = 0;
+            byte[] opc = new byte[15];
+            byte[] opd = new byte[15];
+            short adress = 0;
             if (fixedValue.opcode.TryGetValue(items[1], out opcode) || fixedValue.extrac.TryGetValue(items[1], out opcode))
             {
                 opcode *= 4096;
+                opc = sWord.toByteArray(opcode);
             }
             else if (fixedValue.quarter.TryGetValue(items[1], out opcode) || fixedValue.extraq.TryGetValue(items[1], out opcode))
             {
                 opcode *= 1024;
+                opc = sWord.toByteArray(opcode);
             }
             else if (fixedValue.IOCode.TryGetValue(items[1], out opcode))
             {
                 opcode *= 512;
+                opc = sWord.toByteArray(opcode);
             }
             else if (fixedValue.IACode.TryGetValue(items[1], out opcode))
             {
@@ -318,20 +323,20 @@ namespace nYUL
                 {
                     if (Bank.isErasable())
                     {
-                        Bank.set_word((ushort)bank_index, 0x3000);
+                        Bank.set_hex((short)bank_index, 0x3000);
                     }
                     else if (FB == 2 | FB == 3)
                     {
-                        Bank.set_word((ushort)bank_index, (ushort)(0x1001 + Bank.get_ba() + bank_index));
+                        Bank.set_hex((short)bank_index, (short)(0x1001 + Bank.get_ba() + bank_index));
                     }
                     else
                     {
-                        Bank.set_word((ushort)bank_index, (ushort)(0x1001 + 0x0400 + bank_index));
+                        Bank.set_hex((short)bank_index, (short)(0x1001 + 0x0400 + bank_index));
                     }
                 }
                 else
                 {
-                    Bank.set_word((ushort)bank_index, (ushort)opcode);
+                    Bank.set_hex((short)bank_index, (short)opcode);
                 }
                 bank_index++;
                 return 0;
@@ -343,8 +348,10 @@ namespace nYUL
             error = ResolveOperand(items);
             if (error == -1)
             { return error; }
-            else { adress = (ushort)error; }
-            Bank.set_word((ushort)bank_index, (ushort)(opcode + adress));
+            else { adress = (short)error; }
+            opd = sWord.toByteArray(adress);
+            opc = sWord.orOps(opc, opd);
+            Bank.set_hex((short)bank_index, new sWord(opc).getHex());
             bank_index += 1;
             return 0;
         }
@@ -355,11 +362,11 @@ namespace nYUL
         /// <returns>error index</returns>
         private int ResolveOperand(String[] item)
         {
-            ushort adress = 0;
+            short adress = 0;
             int modifier = 0;
             try
             {
-                adress = (ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber);
+                adress = (short)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber);
             }
             catch
             {
@@ -369,35 +376,35 @@ namespace nYUL
                     sWord adr = new sWord();
                     if (val >= 0x1000)
                     {
-                        adress = (ushort)(val - 0x1000 + 0x400);
+                        adress = (short)(val - 0x1000 + 0x400);
                     }
                     else
                     {
                         if (val >= 0x400 && val <= 0x7FF)
                         {
-                            adr = new sWord((ushort)val);
-                            adress = (ushort)(adr.getVal(0, 7) + 0x300);
+                            adr = new sWord((short)val);
+                            adress = (short)(adr.getVal(0, 7) + 0x300);
                         }
                         else
                         {
-                            adress = (ushort)val;
+                            adress = (short)val;
                         }
                     }
                 }
                 else if (fixedValue.registers.TryGetValue(item[2], out val))
                 {
-                    adress = (ushort)val;
+                    adress = (short)val;
                 }
                 else if(Int32.TryParse(item[2], out modifier))
                 {
-                    adress = (ushort)(bank_index + modifier);
+                    adress = (short)(bank_index + modifier);
                 }
                 else
                 {
                     return -2;
                 }
             }
-            return (ushort)testModifier((int)adress, item);
+            return (short)testModifier((int)adress, item);
         }
 
         //pre-processor resolver
@@ -408,7 +415,7 @@ namespace nYUL
                 case "SETLOC":
                     return SETLOC(items);
                 case "ERASE":
-                    if (mode) { Bank.set_word((ushort)bank_index, 0); }
+                    if (mode) { Bank.set_hex((short)bank_index, 0); }
                     bank_index++;
                     return 0;
                 case "EQUALS":
@@ -423,14 +430,16 @@ namespace nYUL
                     unresolvedFCAdrCount = toFCADR(items, mode);
                     return 0;
                 default:
-                    ushort val;
+                    short val;
                     if (fixedValue.opcode.TryGetValue(items[1], out val) ||
                         fixedValue.quarter.TryGetValue(items[1], out val) ||
                         fixedValue.extraq.TryGetValue(items[1], out val) ||
                         fixedValue.IACode.TryGetValue(items[1], out val) ||
                         fixedValue.IOCode.TryGetValue(items[1], out val) ||
                         fixedValue.extrac.TryGetValue(items[1], out val))
-                    { return 0; }
+                    {
+                        bank_index++;
+                        return 0; }
                     return -1;
             }
         }
@@ -439,7 +448,7 @@ namespace nYUL
             error = ResolveOperand(items);
             if (error == -1)
             { return error; }
-            if (mode) { Bank.set_word((ushort)bank_index, (ushort)error); }
+            if (mode) { Bank.set_hex((short)bank_index, (short)error); }
             bank_index++;
             return 0;
         }
@@ -501,14 +510,14 @@ namespace nYUL
             sWord adr = null;
             try
             {
-                adr = new sWord((ushort)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber));
+                adr = new sWord((short)Int16.Parse(item[2], System.Globalization.NumberStyles.HexNumber));
             }
             catch
             {
                 int val = 0;
                 if (labels.TryGetValue(item[2], out val))
                 {
-                    adr = new sWord((ushort)val);
+                    adr = new sWord((short)val);
                 }
                 else
                 {
@@ -522,14 +531,14 @@ namespace nYUL
                 int tad = adr.getVal(10, 14);
                 if (tad < 4)
                 {
-                    Bank.set_word((ushort)bank_index, (ushort)(adr.getVal(10, 14)));
+                    Bank.set_hex((short)bank_index, (short)(adr.getVal(10, 14)));
                 }
                 else
                 {
-                    Bank.set_word((ushort)bank_index, (ushort)(adr.getVal(10, 14) - 4));
+                    Bank.set_hex((short)bank_index, (short)(adr.getVal(10, 14) - 4));
                 }
                 bank_index++;
-                Bank.set_word((ushort)bank_index, (ushort)(adr.getVal(0, 9)));
+                Bank.set_hex((short)bank_index, (short)(adr.getVal(0, 9)));
                 bank_index++;
             }
             if (unresolvedFCAdrCount > 0)
@@ -551,7 +560,7 @@ namespace nYUL
             switch (items[1])
             {
                 case "BANK":
-                    FB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
+                    FB = (short)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
                     if (FB <= 35 && FB >= 0)
                     {
                         if (FB > 32)
@@ -564,7 +573,7 @@ namespace nYUL
                     }
                     else { return -3; }
                 case "EBANK":
-                    EB = (ushort)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
+                    EB = (short)int.Parse(items[2], System.Globalization.NumberStyles.Integer);
                     if (EB >= 0 && EB <= 7)
                     {
                         bank_index = bank_index_counter[EB];

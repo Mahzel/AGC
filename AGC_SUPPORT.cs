@@ -24,7 +24,7 @@ namespace AGC_SUPPORT
 
 	/// <summary>
 	/// <para>Memory library for the AGC/DSKY emulation</para>
-	///  <para>sWord class : maintain a 16b word on both Hex(String) and Binary array from a ushort designed for the AGC usage</para>
+	///  <para>sWord class : maintain a 16b word on both Hex(String) and Binary array from a short designed for the AGC usage</para>
 	///  <para>Array Index :   15      14      13      12      11      10      9       8       7       6       5       4       3       2       1       0</para>
 	///  <para>Bit position :  16      15      14      13      12      11      10      9       8       7       6       5       4       3       2       1</para>
 	///  <para>Bit function :  P       S       D       D       D       D       D       D       D       D       D       D       D       D       D       D</para>
@@ -50,17 +50,13 @@ namespace AGC_SUPPORT
 		/// <summary>
 		/// decimal value
 		/// </summary>
-		private ushort hex;
+		private short hex;
 		/// <summary>
 		/// binary (byte[16] array) value
 		/// </summary>
 		private byte[] word = new byte[16];
 		/// <summary>
 		/// parity bit option. TRUE = NO PARITY
-		/// </summary>
-		bool parity;
-		/// <summary>
-		/// hex string "0x{value}"
 		/// </summary>
 		private String hexS;
 		/// <summary>
@@ -76,7 +72,6 @@ namespace AGC_SUPPORT
 		public sWord ()
 		{
 			hex = 0x0000;
-			parity = false;
 			word = hexToByte ();
 			buildStr ();
 		}
@@ -84,13 +79,13 @@ namespace AGC_SUPPORT
 		/// Constructor for hex value only, parity is checked by default
 		/// </summary>
 		/// <param name="ihex">16b decimal word</param>
-		public sWord (ushort ihex)
+		public sWord (short ihex)
 		{
 			hex = ihex;
-			parity = false;
+            if(hex<0)
+            { isNegative = true; }
             word = hexToByte();
-            negativeState();
-            setPar(false);
+            calcParity();
 		}
 		/// <summary>
 		/// Constructor for binary array, parity checked by default
@@ -99,56 +94,24 @@ namespace AGC_SUPPORT
 		public sWord (byte[] iWord)
 		{
 			word = iWord;
-			parity = false;
-            setPar(false);
+            calcParity();
+            negativeState();
 			hex = byteToHex ();
-            negativeState();
-		}
-		/// <summary>
-		/// Constructor for hex word, with parity bit calculation option
-		/// </summary>
-		/// <param name="ihex">hex word</param>
-		/// <param name="argParity">FALSE = parity bit enabled</param>
-		public sWord (ushort ihex, bool argParity)
-		{
-			hex = ihex;
-			parity = argParity;
-            word = hexToByte();
-            if (argParity)
-            {
-                word = calcParity();
-            }
-            hex = byteToHex(); 
-            negativeState();
-		}
-		/// <summary>
-		/// Constructor for binary array, with parity bit calculation option
-		/// </summary>
-		/// <param name="iWord">16b word array</param>
-		/// <param name="argParity">FALSE = parity bit enabled</param>
-		public sWord (byte[] iWord, bool argParity)
-		{
-			word = iWord;
-			parity = argParity;
-            if (argParity)
-            {
-                word = calcParity();
-            }
-			hex = byteToHex ();		
-            negativeState();
 		}
 
         //Conversion functions
 		/// <summary>
-		/// convert byte array to hex value (dec ushort)
+		/// convert byte array to hex value (dec short)
 		/// </summary>
-		/// <returns>return the decimal (ushort) value of the byte array.</returns>
-		public ushort byteToHex ()
+		/// <returns>return the decimal (short) value of the byte array.</returns>
+		public short byteToHex ()
 		{
 			hex = 0;
-			for (int i = 0; i < 16; i++) {
-				hex += (ushort)(word [i] * Math.Pow (2, i));           
+			for (int i = 0; i < 14; i++) {
+				hex += (short)(word [i] * Math.Pow (2, i));           
 			}
+            if(isNegative)
+            { hex = (short)(-hex); }
 			return hex;
 		}
 		/// <summary>
@@ -157,47 +120,85 @@ namespace AGC_SUPPORT
 		/// <returns>return the byte array of the hex value.</returns>
 		public byte[] hexToByte ()
 		{
-			int i = 0;
-			int tHex = hex;
-			byte[] tB = new byte[16];
-			if (tHex != 0) {
-				while (tHex != 0) {         
-					if (tHex % 2 == 0) {
-						tB [i] = 0;
-						tHex = (ushort)(tHex / 2);
-					} else {
-						tB [i] = 1;
-						tHex = (ushort)(tHex / 2);
-					}
-					i++;
-				}
-				for (int t = i; t<16; t++) {
-					tB [t] = 0;
-				}
-			} else {
-				for (i = 0; i<=15; i++) {
-					tB [i] = 0;
-				}
-			}
-			if (parity) {
-				tB = calcParity();
-			}
+            byte[] tB = new byte[16];
+            if(hex > 16383 | hex < -16382)
+            {
+                hex = Overflow(hex);
+            }
+			tB = toByteArray(hex);
+            if (isNegative)
+            { tB[14] = 1; }
 			return tB;
 		}
+
+        public static byte[] toByteArray(short num)
+        {
+            int i = 0;
+            byte[] tB = new byte[16];
+            if (num < 0)
+            { num = (short)(-num); }
+            if (num != 0)
+            {
+                while (num != 0)
+                {
+                    if (num % 2 == 0)
+                    {
+                        tB[i] = 0;
+                        num = (short)(num / 2);
+                    }
+                    else
+                    {
+                        tB[i] = 1;
+                        num = (short)(num / 2);
+                    }
+                    i++;
+                }
+                for (int t = i; t <=15; t++)
+                {
+                    tB[t] = 0;
+                }
+            }
+            else
+            {
+                for (i = 0; i <= 15; i++)
+                {
+                    tB[i] = 0;
+                }
+            }
+            return tB;
+        }
+
+        public short Overflow(short hex)
+        {
+            while(hex>16383 | hex<-16383)
+            {
+                if(hex>0)
+                { hex -= 16383; }
+                else { hex += 16383; }
+            }
+            return (hex);
+        }
         /// <summary>
         /// Generate the strings from hex value and binary array
         /// </summary>
         private void buildStr()
         {
-            var builder = new StringBuilder();
-            byte[] tb = new byte[16];
-            tb = word;
-            Array.ForEach(tb, x => builder.Append(x));
-            char[] ta = builder.ToString().ToCharArray();
-            Array.Reverse(ta);
-            binS = new String(ta);
-            binS = String.Format("0b{0}", binS);
-            hexS = String.Format("0x{0:X4}", hex);
+            short tnum=0;
+            binS = "";
+            hexS = "";
+            int[] tab = new int[15];
+            for(int i = 0; i <= 14;i++ )
+            {
+                tnum += (short)(word[i] * Math.Pow(2, i));
+                tab[i] = word[i];
+            }
+            hexS = String.Format("0x{0:X4}", tnum);
+            Array.Reverse(tab);
+            foreach(int x in tab)
+            {
+                binS += x;
+            }
+            binS = "0b" + binS;
         }
         private void negativeState()
         {
@@ -222,70 +223,83 @@ namespace AGC_SUPPORT
 		/// Cycle Left the binary array (Shift 14-1 left, bit 15 -> 1)
 		/// </summary>
 		/// <returns>return cycled word, leave sWord intact</returns>
-		public sWord CYL ()
+		public void CYL ()
 		{
 			byte[] tB = new byte[16];
 			for (int i = 13; i >= 0; i--) {
 				tB [i + 1] = word [i];
 			}
-			tB [0] = word [13];
-			return new sWord(tB);
+			tB [0] = word [14];
+            word = tB;
+            negativeState();
+            calcParity();
+            byteToHex();
 		}
 		/// <summary>
 		/// Shift right the binary array
 		/// </summary>
 		/// <returns>return shifted word, leave sWord intact</returns>
-		public sWord SHR ()
+		public void SHR ()
 		{
 			byte[] tB = new byte[16];
 			for (int i = 14; i >= 1; i--) {
 				tB [i - 1] = word [i];
 			}
-			tB [14] = word [14];
-			return new sWord(tB);
+			tB [14] = tB[13];
+            word = tB;
+            negativeState();
+            calcParity();
+            byteToHex();
 		}
 		/// <summary>
 		/// Shift Left the binary array
 		/// </summary>
-		/// <returns>return shifted word, leave sWord itnact</returns>
-		public sWord SHL ()
+		/// <returns>return shifted word, leave sWord intact</returns>
+		public void SHL ()
 		{
 			byte[] tB = new byte[16];
 			for (int i = 0; i < 14; i++) {
 				tB [i + 1] = word [i];
 			}
 			tB [0] = 0;
-			return new sWord(tB);
+            word = tB;
+            negativeState();
+            calcParity();
+            byteToHex();
 		}
 		/// <summary>
 		/// One's complement of the binary array
 		/// </summary>
 		/// <returns>return complemented word, leave sWord intact</returns>
-		public sWord CPL ()
+		public void CPL ()
 		{
-			byte[] tB = new byte[16];
 			for (int i = 0; i < 15; i++) {
 				if (word [i] == 0) {
-					tB [i] = 1;
+					word [i] = 1;
 				} else {
-					tB [i] = 0;
+					word [i] = 0;
 				}
 			}
-			return new sWord(tB);
+            negativeState();
+            calcParity();
+            byteToHex();
+
 		}
 		/// <summary>
 		/// Cycle Right the binary array : Shift right 15-2, bit 1 -> 15
 		/// </summary>
 		/// <returns>return a cycled word, leave sWord intact</returns>
-		public byte[] CYR ()
+		public void CYR ()
 		{
 			byte[] tB = new byte[16];
-			for (int i = 13; i >= 1; i--) {
+			for (int i = 14; i >= 1; i--) {
 				tB [i - 1] = word [i];
 			}
 			tB [14] = word [0];
-			tB = calcParity ();
-			return tB;
+            word = tB;
+            negativeState();
+			calcParity ();
+            byteToHex();
 		}
 		/// <summary>
 		/// calculate the parity bit, so the number of 1 is odd.
@@ -335,20 +349,12 @@ namespace AGC_SUPPORT
 
         //geters
 		/// <summary>
-		/// get the Hex ushort value
+		/// get the Hex short value
 		/// </summary>
-		/// <returns>return (ushort)decimal value</returns>
-		public ushort getHex ()
+		/// <returns>return (short)decimal value</returns>
+		public short getHex ()
 		{
 			return hex;
-		}
-		/// <summary>
-		/// get wether the parity bit should be set or not
-		/// </summary>
-		/// <returns>true : don't check the parity</returns>
-		public bool getPar ()
-		{
-			return parity;
 		}
 		/// <summary>
 		/// get the binary array
@@ -381,21 +387,21 @@ namespace AGC_SUPPORT
         /// <summary>
         /// calculate the decimal value of the opcode and return it
         /// </summary>
-        /// <returns>ushort opcode</returns>
-        public ushort getOpCode()
+        /// <returns>short opcode</returns>
+        public short getOpCode()
         {
-            return (ushort)(word[14] * 4 + word[13] * 2 + word[12]);
+            return (short)(word[14] * 4 + word[13] * 2 + word[12]);
         }
         /// <summary>
         /// calculate the decimal value of the operand (adress) and return it
         /// </summary>
-        /// <returns>ushort adress</returns>
-        public ushort getOperand()
+        /// <returns>short adress</returns>
+        public short getOperand()
         {
-            ushort retval = 0;
+            short retval = 0;
             for (int i = 11; i >= 0; i--)
             {
-                retval += (ushort)(word[i] * Math.Pow(2, i));
+                retval += (short)(word[i] * Math.Pow(2, i));
             }
             return retval;
         }
@@ -405,36 +411,29 @@ namespace AGC_SUPPORT
         /// <param name="start">Lowest bit offset</param>
         /// <param name="end">Highest bit offset</param>
         /// <returns>The value of the binary range. Value is not shifted. Mean if you give : 10-15 it'll return as if it was a 0-5 binary word.</returns>
-        public ushort getVal(int start, int end)
+        public short getVal(int start, int end)
         {
-            ushort ret = 0;
+            short ret = 0;
             for (int i = start; i <= end; i++)
             {
-                ret += (ushort)(word[i] * Math.Pow(2, i - start));
+                ret += (short)(word[i] * Math.Pow(2, i - start));
             }
             return ret;
         }
         public int getInt()
         {
-            if (isNegative)
-            {
-                sWord tS = new sWord(hex);
-                tS = tS.CPL();
-                return -(int)tS.getHex();
-            }
-            else { return (int)hex; }
+            return (int)hex;
         }
 
         //seters
 		/// <summary>
-		/// set Hex (ushort) value
+		/// set Hex (short) value
 		/// </summary>
-		/// <param name="iHex">hex value to set (ushort)</param>
-		public void setHex (ushort iHex)
+		/// <param name="iHex">hex value to set (short)</param>
+		public void setHex (short iHex)
 		{
 			hex = iHex;
 			word = hexToByte ();
-            setPar(parity);
             negativeState();
 		}
 		/// <summary>
@@ -446,25 +445,19 @@ namespace AGC_SUPPORT
 			word = iw;
 			hex = byteToHex ();
             negativeState();
-            setPar(parity);
 		}
-		/// <summary>
-		/// set wether the parity bit should be set or not
-		/// if set, perform the parity check.
-		/// if NOT, parity bit is set to 0.
-		/// </summary>
-		/// <param name="np">true : don't check parity</param>
-		public void setPar (bool np)
-		{
-			parity = np;
-			if (np) {
-				calcParity ();
-                hex = byteToHex();
-			} else {
-				word [15] = 0;
-                hex = byteToHex();
-			}
-		}
+
+        public static byte[] orOps(byte[] t1, byte[] t2)
+        {
+            for(int i=0;i<=15;i++)
+            {
+                if(t2[i]==1)
+                {
+                    t1[i] = 1;
+                }
+            }
+            return t1;
+        }
 	}
 
 	/// <summary>
@@ -482,7 +475,7 @@ namespace AGC_SUPPORT
 		/// <summary>
 		/// size of the bank
 		/// </summary>
-		private ushort size;
+		private short size;
 		/// <summary>
 		/// Is_Erasable? TRUE = E-MEM
 		/// </summary>
@@ -490,11 +483,11 @@ namespace AGC_SUPPORT
 		/// <summary>
 		/// Bank ID - E:0-8 / F:0-31
 		/// </summary>
-		private ushort bank_id;
+		private short bank_id;
 		/// <summary>
 		/// the MEM_ARRAY in decimal value
 		/// </summary>
-		private ushort[] MEM_ARRAY;
+		private short[] MEM_ARRAY;
 		/// <summary>
 		/// Fixed Extention Bit. If 1, design Super Bank 32 to 35 (24+8 - 27+8)
 		/// </summary>
@@ -518,7 +511,7 @@ namespace AGC_SUPPORT
 		/// <param name="id">Register bank ID</param>
 		/// <param name="SB">FEB value if applicable</param>
 		/// <param name="file">The binary file to read/write.</param>
-		public BANK (bool type, ushort id, int SB, String file)
+		public BANK (bool type, short id, int SB, String file)
 		{
 			is_ErType = type;
 			AGC_file = file;
@@ -532,7 +525,7 @@ namespace AGC_SUPPORT
 				size = 1024;
 			}
 			base_address ();
-			MEM_ARRAY = new ushort[size];
+			MEM_ARRAY = new short[size];
 			int j = 0;
 			for (int i = 0; i < size; i++) {
 				if (b_adress + j + 16 <= fs.Length) {
@@ -558,11 +551,11 @@ namespace AGC_SUPPORT
 		/// </summary>
 		/// <param name="offset_index">offset index is the memory adress in the bank</param>
 		/// <returns>the sWord at the given offset</returns>
-		public sWord get_sword (ushort offset_index)
+		public sWord get_sword (short offset_index)
 		{
 			return new sWord (MEM_ARRAY [offset_index]);
 		}
-        public ushort get_word(ushort offset_index)
+        public short get_word(short offset_index)
         {
             return MEM_ARRAY[offset_index];
         }
@@ -606,7 +599,7 @@ namespace AGC_SUPPORT
 		/// <param name="offset_index">offset is the memory adress in the bank</param>
 		/// <param name="hex">the word value to write in the bank</param>
 		/// <returns>0 : writed / 1 : bank is read only</returns>
-		public int set_word (ushort offset_index, ushort hex)
+		public int set_hex (short offset_index, short hex)
 		{
 			if (is_ErType | compiling) {
 				MEM_ARRAY [offset_index] = hex;
@@ -615,7 +608,8 @@ namespace AGC_SUPPORT
 				return 1;
 			}
 		}
-        public int set_sword(ushort offset_index, sWord word)
+
+        public int set_sword(short offset_index, sWord word)
         {
             if (is_ErType | compiling)
             {
@@ -759,27 +753,27 @@ namespace AGC_SUPPORT
 		/// <summary>
 		/// contains the standard opcodes and the corresponding decimal value.
 		/// </summary>
-		public Dictionary<String, ushort> opcode = new Dictionary<String, ushort> ();
+		public Dictionary<String, short> opcode = new Dictionary<String, short> ();
 		/// <summary>
 		/// Contain standard quartercodes and the corresponding decimal value
 		/// </summary>
-		public Dictionary<String, ushort> quarter = new Dictionary<String, ushort> ();
+		public Dictionary<String, short> quarter = new Dictionary<String, short> ();
 		/// <summary>
 		/// Contain extended opcodes and the corresponding decimal value
 		/// </summary>
-		public Dictionary<String, ushort> extrac = new Dictionary<String, ushort> ();
+		public Dictionary<String, short> extrac = new Dictionary<String, short> ();
 		/// <summary>
 		/// Contain extended quartercodes and the corresponding decimal value
 		/// </summary>
-		public Dictionary<String, ushort> extraq = new Dictionary<String, ushort> ();
+		public Dictionary<String, short> extraq = new Dictionary<String, short> ();
 		/// <summary>
 		/// Contain extended Implied Adress Codes and the corresponding decimal value
 		/// </summary>
-		public Dictionary<String, ushort> IACode = new Dictionary<String, ushort> ();
+		public Dictionary<String, short> IACode = new Dictionary<String, short> ();
 		/// <summary>
 		/// Contain standard  I/O codes and the corresponding decimal value
 		/// </summary>
-		public Dictionary<String, ushort> IOCode = new Dictionary<String, ushort> ();
+		public Dictionary<String, short> IOCode = new Dictionary<String, short> ();
 
 		/// <summary>
 		/// Constructor for the Fixed Values Dictionary
@@ -852,7 +846,7 @@ namespace AGC_SUPPORT
 
     public class Channels
     {
-        private ushort[] AChannels;
+        private short[] AChannels;
         public delegate void dChannel(int channel);
         public dChannel AGCList;
         public dChannel DSKYList;
@@ -860,7 +854,7 @@ namespace AGC_SUPPORT
 
         public Channels()
         {
-            AChannels = new ushort[10];
+            AChannels = new short[10];
             for (int i = 0; i < 10; i++)
             { AChannels[i] = 0; }
         }
@@ -920,7 +914,7 @@ namespace AGC_SUPPORT
             }
         }
 
-        public void set_chan(object sender, int index, ushort value)
+        public void set_chan(object sender, int index, short value)
         {
             if ((index < 10) && (index >= 0))
             { AChannels[index] = value;
@@ -930,7 +924,7 @@ namespace AGC_SUPPORT
             { Console.WriteLine("index {0} out of channel range", index); }
         }
 
-        public ushort get_chan(int index)
+        public short get_chan(int index)
         {
             if ((index < 10) && (index >= 0))
             { return AChannels[index]; }
